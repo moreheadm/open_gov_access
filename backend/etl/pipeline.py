@@ -13,14 +13,15 @@ import pdfplumber
 from sqlalchemy.orm import Session
 
 from models.database import (
+    Action,
+    ActionType,
     Document,
-    DocumentType,
-    Item,
-    ItemResult,
+    Legislation,
+    LegislationStatus,
     Meeting,
     MeetingType,
-    Supervisor,
-    Vote,
+    Official,
+    OfficialType,
     VoteType,
 )
 from scrapers.base import ScrapedDocument
@@ -29,24 +30,24 @@ from scrapers.base import ScrapedDocument
 class VoteParser:
     """
     Parser for extracting voting data from meeting minutes.
-    
+
     Looks for patterns like:
     - "File No. 250210 - Title"
     - "8 ayes, 3 noes"
     - "Supervisor Preston voted aye"
     - Roll call format: "Ayes: Chan, Peskin, ..."
     """
-    
-    # Supervisor name patterns (for matching in text)
-    SUPERVISOR_NAMES = [
+
+    # Official name patterns (for matching in text)
+    OFFICIAL_NAMES = [
         "Chan", "Stefani", "Peskin", "Engardio", "Preston",
         "Dorsey", "Melgar", "Mandelman", "Ronen", "Walton", "Safai"
     ]
-    
+
     def __init__(self, session: Session):
         self.session = session
-    
-    def extract_items(self, text: str, meeting_id: int) -> List[Item]:
+
+    def extract_legislation(self, text: str, meeting_id: int) -> List[Legislation]:
         """
         Extract voting items from meeting minutes text.
         
@@ -82,21 +83,19 @@ class VoteParser:
             # Extract result
             result = self._extract_result(section_text)
             
-            # Create item
-            item = Item(
-                meeting_id=meeting_id,
+            # Create legislation
+            legislation = Legislation(
                 file_number=file_number,
                 title=title,
-                result=result,
-                vote_count_aye=vote_counts.get('aye', 0),
-                vote_count_no=vote_counts.get('no', 0),
-                vote_count_abstain=vote_counts.get('abstain', 0),
-                vote_count_absent=vote_counts.get('absent', 0),
-                vote_count_excused=vote_counts.get('excused', 0),
+                status=result if result else LegislationStatus.PENDING,
+                metadata={
+                    'vote_counts': vote_counts,
+                    'meeting_id': meeting_id
+                }
             )
-            
-            items.append(item)
-        
+
+            items.append(legislation)
+
         return items
     
     def _extract_vote_counts(self, text: str) -> Dict[str, int]:
@@ -120,86 +119,89 @@ class VoteParser:
         
         return counts
     
-    def _extract_result(self, text: str) -> Optional[ItemResult]:
+    def _extract_result(self, text: str) -> Optional[LegislationStatus]:
         """Extract vote result from text"""
         text_lower = text.lower()
-        
+
         if 'approved' in text_lower or 'passed' in text_lower:
-            return ItemResult.APPROVED
+            return LegislationStatus.APPROVED
         elif 'rejected' in text_lower or 'failed' in text_lower:
-            return ItemResult.REJECTED
+            return LegislationStatus.REJECTED
         elif 'continued' in text_lower:
-            return ItemResult.CONTINUED
+            return LegislationStatus.PENDING
         elif 'withdrawn' in text_lower:
-            return ItemResult.WITHDRAWN
-        
-        return ItemResult.PENDING
+            return LegislationStatus.PENDING
+
+        return LegislationStatus.PENDING
     
-    def extract_votes(self, text: str, item: Item) -> List[Vote]:
+    def extract_votes(self, text: str, legislation: Legislation) -> List[Action]:
         """
-        Extract individual supervisor votes.
-        
+        Extract individual official votes.
+
         Args:
-            text: Section of text for this item
-            item: Item object
-            
+            text: Section of text for this legislation
+            legislation: Legislation object
+
         Returns:
-            List of Vote objects
+            List of Action objects
         """
-        votes = []
-        
+        actions = []
+
         # Get all supervisors from database
-        supervisors = {s.name: s for s in self.session.query(Supervisor).all()}
-        
+        officials = {o.name: o for o in self.session.query(Official).filter(
+            Official.official_type == OfficialType.SUPERVISOR
+        ).all()}
+
         # Pattern 1: Roll call format
         # "Ayes: Chan, Peskin, Preston"
         # "Noes: Stefani, Dorsey"
-        votes.extend(self._extract_roll_call_votes(text, item, supervisors))
-        
+        actions.extend(self._extract_roll_call_votes(text, legislation, officials))
+
         # Pattern 2: Individual mentions
         # "Supervisor Preston voted aye"
-        votes.extend(self._extract_individual_votes(text, item, supervisors))
-        
-        return votes
+        actions.extend(self._extract_individual_votes(text, legislation, officials))
+
+        return actions
     
     def _extract_roll_call_votes(
-        self, text: str, item: Item, supervisors: Dict[str, Supervisor]
-    ) -> List[Vote]:
+        self, text: str, legislation: Legislation, officials: Dict[str, Official]
+    ) -> List[Action]:
         """Extract votes from roll call format"""
-        votes = []
-        
+        actions = []
+
         # Find roll call sections
         for vote_type_str in ['ayes?', 'no(?:es)?', 'abstain', 'absent', 'excused']:
             pattern = rf'{vote_type_str}:\s*([^.;]+)'
             match = re.search(pattern, text, re.I)
-            
+
             if match:
                 names_text = match.group(1)
                 vote_type = self._normalize_vote_type(vote_type_str)
-                
-                # Extract supervisor names
-                for sup_name, supervisor in supervisors.items():
-                    if sup_name.lower() in names_text.lower():
-                        vote = Vote(
-                            item_id=item.id,
-                            supervisor_id=supervisor.id,
+
+                # Extract official names
+                for official_name, official in officials.items():
+                    if official_name.lower() in names_text.lower():
+                        action = Action(
+                            legislation_id=legislation.id,
+                            official_id=official.id,
+                            action_type=ActionType.VOTE,
                             vote=vote_type
                         )
-                        votes.append(vote)
-        
-        return votes
+                        actions.append(action)
+
+        return actions
     
     def _extract_individual_votes(
-        self, text: str, item: Item, supervisors: Dict[str, Supervisor]
-    ) -> List[Vote]:
+        self, text: str, legislation: Legislation, officials: Dict[str, Official]
+    ) -> List[Action]:
         """Extract votes from individual mentions"""
-        votes = []
-        
-        for sup_name, supervisor in supervisors.items():
+        actions = []
+
+        for official_name, official in officials.items():
             # Pattern: "Supervisor Preston voted aye"
-            pattern = rf'(?:Supervisor\s+)?{sup_name}\s+(?:voted\s+)?(\w+)'
+            pattern = rf'(?:Supervisor\s+)?{official_name}\s+(?:voted\s+)?(\w+)'
             match = re.search(pattern, text, re.I)
-            
+
             if match:
                 vote_str = match.group(1).lower()
                 if vote_str in ['aye', 'yes']:
@@ -212,15 +214,16 @@ class VoteParser:
                     vote_type = VoteType.ABSENT
                 else:
                     continue
-                
-                vote = Vote(
-                    item_id=item.id,
-                    supervisor_id=supervisor.id,
+
+                action = Action(
+                    legislation_id=legislation.id,
+                    official_id=official.id,
+                    action_type=ActionType.VOTE,
                     vote=vote_type
                 )
-                votes.append(vote)
-        
-        return votes
+                actions.append(action)
+
+        return actions
     
     def _normalize_vote_type(self, vote_str: str) -> VoteType:
         """Normalize vote type string to VoteType enum"""
@@ -365,25 +368,25 @@ class ETLPipeline:
             # 5. Extract voting data (only from minutes)
             if doc.doc_type == 'minutes':
                 print(f"Extracting voting data...")
-                items = self.vote_parser.extract_items(text_content, meeting.id)
+                legislation_items = self.vote_parser.extract_legislation(text_content, meeting.id)
 
-                for item in items:
-                    self.session.add(item)
+                for legislation in legislation_items:
+                    self.session.add(legislation)
                     self.session.flush()
 
                     # Extract individual votes
-                    # Find the section of text for this item
-                    item_pattern = rf'File\s+(?:No\.|#)\s*{item.file_number}(.*?)(?=File\s+(?:No\.|#)|$)'
+                    # Find the section of text for this legislation
+                    item_pattern = rf'File\s+(?:No\.|#)\s*{legislation.file_number}(.*?)(?=File\s+(?:No\.|#)|$)'
                     item_match = re.search(item_pattern, text_content, re.I | re.DOTALL)
 
                     if item_match:
                         item_text = item_match.group(1)
-                        votes = self.vote_parser.extract_votes(item_text, item)
+                        actions = self.vote_parser.extract_votes(item_text, legislation)
 
-                        for vote in votes:
-                            self.session.add(vote)
+                        for action in actions:
+                            self.session.add(action)
 
-                print(f"Extracted {len(items)} items")
+                print(f"Extracted {len(legislation_items)} legislation items")
 
             # 6. Commit transaction
             self.session.commit()

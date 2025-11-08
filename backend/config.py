@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # Database
     database_url: str = os.getenv(
         "DATABASE_URL",
-        "postgresql://postgres:postgres@localhost:5432/open_gov_access"
+        "postgresql://opengov:opengov@localhost:5432/open_gov_access"
     )
     
     # API
