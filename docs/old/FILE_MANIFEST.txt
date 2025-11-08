@@ -1,0 +1,71 @@
+MISSION LOCAL CIVIC DATA PLATFORM - FILE MANIFEST
+=================================================
+
+📖 DOCUMENTATION FILES
+├── 00_START_HERE.md           ⭐ BEGIN HERE - Complete hackathon guide
+├── PROJECT_GUIDE.md            Deep dive: use cases, demos, next steps  
+├── ARCHITECTURE_OVERVIEW.md    System design and technical details
+├── README.md                   Technical documentation
+├── SCRAPER_IMPROVEMENTS.md     🆕 New scraper features explained
+└── SCRAPER_USAGE_GUIDE.md      🆕 Complete scraper documentation
+
+💻 CODE FILES - Scrapers
+├── base_scraper.py            🆕 Generic scraper base class (NEW!)
+├── sfbos_scraper_v2.py        🆕 Production BOS scraper (USE THIS!)
+├── building_permits_scraper.py 🆕 Example: Building permits scraper
+├── sfbos_scraper.py           Original scraper (deprecated)
+└── demo_scraper.py            Generates sample data
+
+💻 CODE FILES - Other
+├── mcp_server.py              MCP server for AI integration
+└── schema.sql                 PostgreSQL database schema
+
+⚙️ CONFIGURATION
+├── requirements.txt           Python dependencies
+├── mcp_config.json           MCP server configuration
+└── architecture.mermaid      System architecture diagram
+
+🎬 DEMOS
+├── demo_scraper.py           Generate sample meeting data
+└── demo_incremental_scraping.py 🆕 Show incremental scraping
+
+📁 SAMPLE DATA (sfbos_meetings_demo/)
+├── text/                     5 extracted meeting documents
+│   ├── October-28-2025_agenda.txt
+│   ├── October-21-2025_agenda.txt
+│   ├── October-21-2025_minutes.txt
+│   ├── October-7-2025_agenda.txt
+│   └── October-7-2025_minutes.txt
+├── metadata/                 JSON metadata for each document
+│   └── (5 .json files)
+└── summary.json             Overview of scraped data
+
+=================================================
+QUICK START
+=================================================
+
+1. Read: 00_START_HERE.md
+2. Read: SCRAPER_IMPROVEMENTS.md (NEW!)
+3. Run:  python sfbos_scraper_v2.py --limit 5
+4. Run again: python sfbos_scraper_v2.py --limit 10
+   (Watch it skip already-scraped docs!)
+
+=================================================
+NEW FEATURES (November 2025)
+=================================================
+
+✅ Incremental Scraping - Only fetch new documents
+✅ State Management - Automatic deduplication  
+✅ Generic Framework - Easy to extend for new sources
+✅ Better Error Handling - One failure doesn't stop everything
+✅ Statistics Tracking - Know what succeeded/failed
+
+Use sfbos_scraper_v2.py instead of sfbos_scraper.py!
+
+Total files: 14 core files + 11 sample data files
+Ready to build: ✅ All dependencies documented
+Demo ready: ✅ Sample data pre-generated
+Production ready: ✅ Incremental scraping implemented
+
+Built for Mission Local hackathon challenge
+Goal: Supercharge civic accountability journalism
