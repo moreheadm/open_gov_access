@@ -15,12 +15,13 @@ import argparse
 import sys
 from pathlib import Path
 
-# Add parent directory to path
+# Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from models.database import init_db, get_session, seed_supervisors
 from scrapers.sfbos import SFBOSScraper
 from etl.pipeline import ETLPipeline
+from config import settings
 
 
 def cmd_init(args):
@@ -102,10 +103,10 @@ def cmd_serve(args):
     """Start API server"""
     import uvicorn
     from api.main import app
-    
+
     print(f"Starting API server on http://{args.host}:{args.port}")
     print(f"Docs available at http://{args.host}:{args.port}/docs")
-    
+
     uvicorn.run(
         app,
         host=args.host,
@@ -125,7 +126,7 @@ def cmd_stats(args):
     """Show statistics"""
     engine = init_db(args.database)
     session = get_session(engine)
-    
+
     from models.database import Meeting, Item, Vote, Supervisor
     from sqlalchemy import func
     
@@ -151,7 +152,7 @@ def main():
     # Global arguments
     parser.add_argument(
         '--database',
-        default='sqlite:///data/supervisor_votes.db',
+        default=settings.database_url,
         help='Database URL'
     )
     parser.add_argument(
