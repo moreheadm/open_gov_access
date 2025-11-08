@@ -1,0 +1,80 @@
+graph TB
+    subgraph "Data Sources Layer"
+        DS1[SF Board Meetings]
+        DS2[Campaign Finance]
+        DS3[Building Permits]
+        DS4[Police Reports]
+        DS5[Other Civic Data]
+    end
+    
+    subgraph "Ingestion Pipeline"
+        SCRAPER[Data Scrapers]
+        PARSER[Document Parser<br/>PDF→Text/MD]
+        VALIDATOR[Data Validator]
+    end
+    
+    subgraph "Storage Layer"
+        DB[(PostgreSQL<br/>Structured Data)]
+        BLOB[Object Storage<br/>Original Documents]
+        VECTOR[Vector DB<br/>Embeddings for Search]
+    end
+    
+    subgraph "Processing Layer"
+        ETL[ETL Pipeline]
+        INDEXER[Search Indexer]
+        ANALYZER[Pattern Detection<br/>Anomaly Detection]
+    end
+    
+    subgraph "API Layer"
+        REST[REST API]
+        MCP[MCP Server<br/>AI Tool Access]
+        WEBSOCKET[WebSocket<br/>Real-time Alerts]
+    end
+    
+    subgraph "Frontend Layer"
+        WEB[Web Interface]
+        SEARCH[Search UI]
+        DASHBOARD[Analytics Dashboard]
+        ALERTS[Alert Management]
+    end
+    
+    DS1 --> SCRAPER
+    DS2 --> SCRAPER
+    DS3 --> SCRAPER
+    DS4 --> SCRAPER
+    DS5 --> SCRAPER
+    
+    SCRAPER --> PARSER
+    PARSER --> VALIDATOR
+    
+    VALIDATOR --> DB
+    VALIDATOR --> BLOB
+    VALIDATOR --> VECTOR
+    
+    DB --> ETL
+    BLOB --> ETL
+    ETL --> INDEXER
+    ETL --> ANALYZER
+    
+    INDEXER --> VECTOR
+    ANALYZER --> DB
+    
+    DB --> REST
+    VECTOR --> REST
+    DB --> MCP
+    VECTOR --> MCP
+    ANALYZER --> WEBSOCKET
+    
+    REST --> WEB
+    REST --> SEARCH
+    REST --> DASHBOARD
+    MCP --> WEB
+    WEBSOCKET --> ALERTS
+    
+    style DS1 fill:#e1f5ff
+    style DS2 fill:#e1f5ff
+    style DS3 fill:#e1f5ff
+    style DS4 fill:#e1f5ff
+    style DS5 fill:#e1f5ff
+    style MCP fill:#ffe1e1
+    style ANALYZER fill:#fff4e1

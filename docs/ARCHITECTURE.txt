@@ -1,0 +1,204 @@
+SF SUPERVISOR VOTES TRACKER - ARCHITECTURE
+===========================================
+
+SYSTEM OVERVIEW
+---------------
+Track how SF Board of Supervisors members vote on legislation.
+Focus: Narrow problem, production-ready, extensible.
+
+COMPONENTS
+----------
+
+1. SCRAPERS (scrapers/)
+   ├── base.py         - Abstract Scraper class
+   │                     * source_name()
+   │                     * discover()
+   │                     * fetch()
+   │                     * parse()
+   │                     * scrape() [with incremental support]
+   │
+   └── sfbos.py        - SF BOS implementation
+                         * Discovers meeting PDFs
+                         * Incremental scraping with state
+                         * Downloads agendas + minutes
+
+2. ETL PIPELINE (etl/)
+   └── pipeline.py     - ETLPipeline class
+                         * pdf_to_text()
+                         * pdf_to_markdown()
+                         * extract_items() [parse votes]
+                         * load to database
+
+3. DATABASE (models/)
+   └── database.py     - SQLAlchemy models
+                         * Meeting
+                         * Document
+                         * Supervisor
+                         * Item (legislation)
+                         * Vote
+                         * seed_supervisors()
+
+4. API (api/)
+   └── main.py         - FastAPI application
+                         * GET /api/supervisors
+                         * GET /api/supervisors/{id}/votes
+                         * GET /api/supervisors/{id}/stats
+                         * GET /api/items
+                         * GET /api/items/{id}
+                         * GET /api/stats/overview
+
+5. CLI (main.py)
+   └── Commands:
+       * init          - Create DB + seed supervisors
+       * scrape        - Download documents
+       * process       - Run ETL pipeline
+       * run           - Full pipeline (scrape + process)
+       * serve         - Start API server
+       * stats         - Show database stats
+       * reset         - Reset scraper state
+
+DATA FLOW
+---------
+
+sfbos.org (PDFs)
+    ↓
+SFBOSScraper.discover()     → Find available docs
+    ↓
+SFBOSScraper.fetch()        → Download PDFs
+    ↓
+ETLPipeline.process()
+    ↓
+VoteParser.pdf_to_text()    → Extract text
+    ↓
+VoteParser.pdf_to_markdown() → Convert to markdown
+    ↓
+VoteParser.extract_items()  → Parse voting data
+    ↓
+Database (SQLAlchemy)       → Store structured data
+    ↓
+FastAPI                     → REST API
+    ↓
+Journalist / Web App        → Query voting records
+
+KEY FEATURES
+------------
+
+✓ Generic Scraper Framework
+  - Abstract base class
+  - Easy to extend for new sources
+  - Automatic state management
+
+✓ Incremental Scraping
+  - Only processes new documents
+  - State persists across runs
+  - Force re-scrape option
+
+✓ ETL Pipeline
+  - PDF → Markdown conversion
+  - Voting record extraction
+  - Database loading
+
+✓ REST API
+  - FastAPI with auto docs
+  - Supervisor voting records
+  - Item/legislation tracking
+
+✓ Production Ready
+  - Error handling
+  - Database transactions
+  - Type hints (Pydantic)
+  - Logging
+
+EXTENSIBILITY
+-------------
+
+Add New Data Source:
+    1. Create class extending Scraper
+    2. Implement abstract methods
+    3. Use: scraper.scrape(limit=10)
+
+Add New API Endpoint:
+    1. Add route to api/main.py
+    2. Query database with SQLAlchemy
+    3. Return Pydantic model
+
+DATABASE SCHEMA
+---------------
+
+meetings
+  ├── id (PK)
+  ├── meeting_date (unique)
+  └── meeting_type
+
+documents
+  ├── id (PK)
+  ├── doc_id (unique, hash of url+date)
+  ├── meeting_id (FK)
+  ├── source
+  ├── doc_type
+  ├── url
+  ├── raw_content
+  └── markdown_content
+
+supervisors
+  ├── id (PK)
+  ├── name
+  ├── district
+  └── is_active
+
+items (legislation)
+  ├── id (PK)
+  ├── meeting_id (FK)
+  ├── file_number
+  ├── title
+  ├── result
+  └── vote_counts (aye, no, abstain, absent)
+
+votes
+  ├── id (PK)
+  ├── item_id (FK)
+  ├── supervisor_id (FK)
+  └── vote (aye, no, abstain, absent, excused)
+
+QUICK START
+-----------
+
+1. Install:
+   pip install -r requirements.txt
+
+2. Initialize:
+   python main.py init
+
+3. Run:
+   python main.py run --limit 5
+
+4. Serve:
+   python main.py serve
+
+5. Query:
+   curl http://localhost:8000/api/supervisors
+   curl http://localhost:8000/api/items
+
+FILES
+-----
+main.py                 CLI orchestrator
+requirements.txt        Dependencies
+README.md               Full documentation
+QUICKSTART.md           This summary
+
+scrapers/
+  base.py               Generic scraper framework
+  sfbos.py              SF BOS implementation
+
+models/
+  database.py           SQLAlchemy models
+
+etl/
+  pipeline.py           ETL pipeline
+
+api/
+  main.py               FastAPI application
+
+data/
+  supervisor_votes.db   SQLite database
+  state/                Scraper state
