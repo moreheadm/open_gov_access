@@ -41,7 +41,7 @@ app.add_middleware(
 )
 
 # Database setup
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/supervisor_votes")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/open_gov_access")
 engine = create_engine(DATABASE_URL)
 
 

@@ -2,11 +2,11 @@
 Database models for SF Board of Supervisors voting records.
 
 Models:
-- Meeting: Board meetings
-- Document: Meeting documents (agendas, minutes)
+- Document: Scraped documents (centerpiece for raw data)
 - Supervisor: Board members
-- Item: Legislation items voted on
-- Vote: Individual supervisor votes on items
+- Legislation: Bills, ordinances, resolutions
+- Meeting: Board meetings
+- Action: Votes or proposals by supervisors on legislation
 """
 
 from datetime import datetime
@@ -33,20 +33,29 @@ class Base(DeclarativeBase):
     pass
 
 
+class ActionType(str, enum.Enum):
+    """Types of actions a supervisor can take"""
+    VOTE = "vote"
+    SPONSOR = "sponsor"
+    CO_SPONSOR = "co_sponsor"
+    PROPOSE = "propose"
+
+
 class VoteType(str, enum.Enum):
     """Types of votes a supervisor can cast"""
-    AYE = "aye"
+    YES = "yes"
     NO = "no"
     ABSTAIN = "abstain"
     ABSENT = "absent"
     EXCUSED = "excused"
 
 
-class DocumentType(str, enum.Enum):
-    """Types of documents"""
-    AGENDA = "agenda"
-    MINUTES = "minutes"
-    OTHER = "other"
+class ContentFormat(str, enum.Enum):
+    """Format of document content"""
+    PDF = "pdf"
+    HTML = "html"
+    CSV = "csv"
+    TEXT = "text"
 
 
 class MeetingType(str, enum.Enum):
@@ -56,8 +65,8 @@ class MeetingType(str, enum.Enum):
     COMMITTEE = "committee"
 
 
-class ItemResult(str, enum.Enum):
-    """Result of voting on an item"""
+class LegislationStatus(str, enum.Enum):
+    """Result of voting on legislation"""
     APPROVED = "approved"
     REJECTED = "rejected"
     CONTINUED = "continued"
@@ -65,44 +74,24 @@ class ItemResult(str, enum.Enum):
     PENDING = "pending"
 
 
-class Meeting(Base):
-    """Board of Supervisors meeting"""
-    __tablename__ = "meetings"
-
-    id = Column(Integer, primary_key=True)
-    meeting_date = Column(DateTime, nullable=False, unique=True, index=True)
-    meeting_type = Column(Enum(MeetingType), nullable=False, default=MeetingType.REGULAR)
-    created_at = Column(DateTime, nullable=False, default=func.now())
-    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
-
-    # Relationships
-    documents = relationship("Document", back_populates="meeting", cascade="all, delete-orphan")
-    items = relationship("Item", back_populates="meeting", cascade="all, delete-orphan")
-
-    def __repr__(self):
-        return f"<Meeting(date={self.meeting_date}, type={self.meeting_type})>"
-
-
 class Document(Base):
-    """Meeting document (agenda, minutes, etc.)"""
+    """
+    Scraped document - centerpiece for raw data storage.
+    Documents are independent of meetings and contain raw scraped content.
+    """
     __tablename__ = "documents"
 
     id = Column(Integer, primary_key=True)
-    doc_id = Column(String(255), nullable=False, unique=True, index=True)  # Hash of url+date
-    meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=False, index=True)
-    source = Column(String(255), nullable=False)  # e.g., "sfbos"
-    doc_type = Column(Enum(DocumentType), nullable=False)
-    url = Column(String(1024), nullable=False)
-    raw_content = Column(Text, nullable=True)  # Original PDF/HTML content
-    markdown_content = Column(Text, nullable=True)  # Converted to markdown
+    source = Column(String(255), nullable=False, index=True)  # e.g., "sfbos", "permits"
+    url = Column(String(1024), nullable=False, unique=True, index=True)
+    raw_content = Column(Text, nullable=True)  # File dump - original content
+    content_format = Column(Enum(ContentFormat), nullable=False)  # pdf, html, csv, etc.
+    converted_content = Column(Text, nullable=True)  # Content as markdown text
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
-    # Relationships
-    meeting = relationship("Meeting", back_populates="documents")
-
     def __repr__(self):
-        return f"<Document(doc_id={self.doc_id}, type={self.doc_type})>"
+        return f"<Document(id={self.id}, source={self.source}, format={self.content_format})>"
 
 
 class Supervisor(Base):
@@ -119,62 +108,85 @@ class Supervisor(Base):
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
     # Relationships
-    votes = relationship("Vote", back_populates="supervisor", cascade="all, delete-orphan")
+    actions = relationship("Action", back_populates="supervisor", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Supervisor(name={self.name}, district={self.district})>"
 
 
-class Item(Base):
-    """Legislation item voted on at a meeting"""
-    __tablename__ = "items"
+class Legislation(Base):
+    """Bills, ordinances, resolutions, and other legislation"""
+    __tablename__ = "legislation"
 
     id = Column(Integer, primary_key=True)
-    meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=False, index=True)
     file_number = Column(String(255), nullable=True, index=True)  # e.g., "250210"
     title = Column(Text, nullable=False)
     description = Column(Text, nullable=True)
-    result = Column(Enum(ItemResult), nullable=True)
-    
-    # Vote counts
-    vote_count_aye = Column(Integer, nullable=False, default=0)
-    vote_count_no = Column(Integer, nullable=False, default=0)
-    vote_count_abstain = Column(Integer, nullable=False, default=0)
-    vote_count_absent = Column(Integer, nullable=False, default=0)
-    vote_count_excused = Column(Integer, nullable=False, default=0)
-    
+    legislation_type = Column(String(100), nullable=True)  # "Ordinance", "Resolution", etc.
+    status = Column(Enum(LegislationStatus), nullable=True)
+
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
     # Relationships
-    meeting = relationship("Meeting", back_populates="items")
-    votes = relationship("Vote", back_populates="item", cascade="all, delete-orphan")
+    actions = relationship("Action", back_populates="legislation", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Item(file_number={self.file_number}, title={self.title[:50]})>"
+        return f"<Legislation(file_number={self.file_number}, title={self.title[:50]})>"
 
 
-class Vote(Base):
-    """Individual supervisor vote on an item"""
-    __tablename__ = "votes"
+class Meeting(Base):
+    """Board of Supervisors meeting"""
+    __tablename__ = "meetings"
 
     id = Column(Integer, primary_key=True)
-    item_id = Column(Integer, ForeignKey("items.id"), nullable=False, index=True)
+    meeting_date = Column(DateTime, nullable=False, unique=True, index=True)
+    meeting_type = Column(Enum(MeetingType), nullable=False, default=MeetingType.REGULAR)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    actions = relationship("Action", back_populates="meeting", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Meeting(date={self.meeting_date}, type={self.meeting_type})>"
+
+
+class Action(Base):
+    """
+    Represents a vote or proposal by a supervisor on legislation.
+    Many actions belong to one legislation.
+    Many actions belong to one supervisor.
+    Many actions belong to one meeting.
+    """
+    __tablename__ = "actions"
+
+    id = Column(Integer, primary_key=True)
+
+    # Foreign keys
+    legislation_id = Column(Integer, ForeignKey("legislation.id"), nullable=False, index=True)
     supervisor_id = Column(Integer, ForeignKey("supervisors.id"), nullable=False, index=True)
-    vote = Column(Enum(VoteType), nullable=False)
+    meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=True, index=True)
+
+    # Action details
+    action_type = Column(Enum(ActionType), nullable=False, default=ActionType.VOTE)
+    vote = Column(Enum(VoteType), nullable=True)  # Only for VOTE action_type
+    notes = Column(Text, nullable=True)  # Additional context
+
     created_at = Column(DateTime, nullable=False, default=func.now())
 
     # Relationships
-    item = relationship("Item", back_populates="votes")
-    supervisor = relationship("Supervisor", back_populates="votes")
+    legislation = relationship("Legislation", back_populates="actions")
+    supervisor = relationship("Supervisor", back_populates="actions")
+    meeting = relationship("Meeting", back_populates="actions")
 
     def __repr__(self):
-        return f"<Vote(supervisor_id={self.supervisor_id}, vote={self.vote})>"
+        return f"<Action(supervisor_id={self.supervisor_id}, type={self.action_type}, vote={self.vote})>"
 
 
 # Database initialization and utilities
 
-def init_db(database_url: str = "postgresql://localhost/supervisor_votes"):
+def init_db(database_url: str = "postgresql://localhost/open_gov_access"):
     """
     Initialize database and create all tables.
     
