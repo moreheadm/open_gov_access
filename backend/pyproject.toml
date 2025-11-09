@@ -22,6 +22,7 @@ dependencies = [
     "selenium>=4.38.0",
     "pymupdf-layout>=1.26.6",
     "google-generativeai>=0.8.5",
+    "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]

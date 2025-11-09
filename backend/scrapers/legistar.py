@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 from typing import Generator, Optional
 
+import pandas as pd
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -60,7 +61,10 @@ class LegistarScraper(Scraper):
         
         driver = webdriver.Chrome(options=options)
         return driver
-    
+
+    def scrape_members(self):
+        pass
+
     def scrape(
         self,
         limit: Optional[int] = None,
@@ -119,111 +123,51 @@ class LegistarScraper(Scraper):
             # Wait for grid to load
             time.sleep(3)
 
-            # Process pages and yield documents
-            page_num = 1
+            # Collect all pages into a single dataframe
+            print(f"[{self.source_name()}] Collecting all pages into a single dataframe...")
+            all_pages_df = self._collect_all_pages(driver)
+
+            if all_pages_df.empty:
+                print(f"[{self.source_name()}] No data found in calendar")
+                return
+
+            print(f"[{self.source_name()}] Collected {len(all_pages_df)} rows from all pages")
+
+            # Process transcripts from the combined dataframe
             count = 0
+            for transcript_url in self._extract_transcript_urls(all_pages_df, session, incremental, force):
+                if limit and count >= limit:
+                    return
 
-            while True:
-                print(f"[{self.source_name()}] Processing page {page_num}")
+                try:
+                    # Fetch the document
+                    print(f"[{self.source_name()}] Fetching: {transcript_url}")
+                    driver.get(transcript_url)
+                    time.sleep(2)
 
-                # Get page source and parse with BeautifulSoup
-                page_source = driver.page_source
-                soup = BeautifulSoup(page_source, 'html.parser')
+                    # Get page source
+                    page_content = driver.page_source
 
-                # Find the calendar grid table
-                grid = soup.find('table', id=re.compile(r'gridCalendar'))
-                if not grid:
-                    break
+                    # For transcripts, extract and convert to markdown (if enabled)
+                    converted_content = None
+                    if self.convert_with_ai:
+                        converted_content = self._extract_and_convert_transcript(page_content)
 
-                # Find all rows in the table body
-                rows = grid.find_all('tr', class_=re.compile(r'rgRow|rgAltRow'))
+                    # Create Document model
+                    doc = Document(
+                        source=self.source_name(),
+                        url=transcript_url,
+                        raw_content=page_content,
+                        content_format=ContentFormat.HTML,
+                        converted_content=converted_content
+                    )
 
-                for row in rows:
-                    if limit and count >= limit:
-                        return
+                    count += 1
+                    yield doc
 
-                    try:
-                        # Find all links in the row
-                        links = row.find_all('a')
-
-                        for link in links:
-                            if limit and count >= limit:
-                                return
-
-                            onclick = link.get('onclick', '')
-                            link_text = link.get_text(strip=True).lower()
-
-                            # Extract URL from onclick attribute
-                            url = self._extract_url_from_onclick(onclick)
-                            if not url:
-                                continue
-
-                            # Make URL absolute
-                            if url.startswith('/'):
-                                url = self.BASE_URL + url
-                            elif not url.startswith('http'):
-                                url = self.BASE_URL + '/' + url
-
-                            # Check if already in database (incremental by default)
-                            if incremental and not force and session:
-                                existing = session.query(Document).filter_by(url=url).first()
-                                if existing:
-                                    print(f"[{self.source_name()}] Skipping (already in database): {url}")
-                                    continue
-
-                            # Determine document type and content format
-                            if 'transcript' in link_text:
-                                doc_type = 'transcript'
-                                content_format = ContentFormat.HTML
-                            elif 'meeting detail' in link_text or 'detail' in link_text:
-                                # skip meeting details
-                                doc_type = 'meeting_details'
-                                content_format = ContentFormat.HTML
-                                continue
-                            else:
-                                continue  # Skip other link types
-
-                            # Fetch the document
-                            try:
-                                print(f"[{self.source_name()}] Fetching: {url}")
-                                driver.get(url)
-                                time.sleep(2)
-
-                                # Get page source
-                                page_content = driver.page_source
-
-                                # For transcripts, extract and convert to markdown (if enabled)
-                                converted_content = None
-                                if doc_type == 'transcript' and self.convert_with_ai:
-                                    converted_content = self._extract_and_convert_transcript(page_content)
-
-                                # Create Document model
-                                doc = Document(
-                                    source=self.source_name(),
-                                    url=url,
-                                    raw_content=page_content,
-                                    content_format=content_format,
-                                    converted_content=converted_content
-                                )
-
-                                count += 1
-                                yield doc
-
-                            except Exception as e:
-                                print(f"[{self.source_name()}] Error fetching {url}: {e}")
-                                continue
-
-                    except Exception as e:
-                        print(f"[{self.source_name()}] Error parsing row: {e}")
-                        continue
-
-                # Try to navigate to next page
-                if not self._go_to_next_page(driver, page_num + 1):
-                    print(f"[{self.source_name()}] No more pages")
-                    break
-
-                page_num += 1
-                time.sleep(1)  # Be polite
+                except Exception as e:
+                    print(f"[{self.source_name()}] Error fetching {transcript_url}: {e}")
+                    continue
 
             print(f"[{self.source_name()}] Successfully scraped {count} documents")
 
@@ -231,6 +175,53 @@ class LegistarScraper(Scraper):
             if driver:
                 driver.quit()
     
+    def _collect_all_pages(self, driver: webdriver.Chrome) -> pd.DataFrame:
+        """
+        Collect all pages of the calendar table into a single dataframe.
+
+        Args:
+            driver: Selenium WebDriver
+
+        Returns:
+            Combined DataFrame from all pages
+        """
+        all_dfs = []
+        page_num = 1
+
+        while True:
+            print(f"[{self.source_name()}] Collecting page {page_num}")
+
+            # Get page source and parse with BeautifulSoup
+            page_source = driver.page_source
+            soup = BeautifulSoup(page_source, 'html.parser')
+
+            # Find the calendar grid table
+            grid = soup.find('table', id=re.compile(r'gridCalendar'))
+            if not grid:
+                break
+
+            # Parse table into pandas dataframe
+            df = self._parse_table_to_dataframe(grid)
+            if df.empty:
+                break
+
+            all_dfs.append(df)
+
+            # Try to navigate to next page
+            if not self._go_to_next_page(driver, page_num + 1):
+                print(f"[{self.source_name()}] No more pages")
+                break
+
+            page_num += 1
+            time.sleep(1)  # Be polite
+
+        # Combine all dataframes
+        if all_dfs:
+            combined_df = pd.concat(all_dfs, ignore_index=True)
+            return combined_df
+        else:
+            return pd.DataFrame()
+
     def _set_dropdown(self, driver: webdriver.Chrome, input_id: str, value: str):
         """
         Set a dropdown value by clicking the input and selecting from the dropdown.
@@ -319,6 +310,122 @@ class LegistarScraper(Scraper):
                 return match.group(1)
 
         return None
+
+    def _parse_table_to_dataframe(self, table_element) -> pd.DataFrame:
+        """
+        Parse HTML table into pandas DataFrame.
+
+        Extracts table headings from HTML and converts links to URLs.
+
+        Args:
+            table_element: BeautifulSoup table element
+
+        Returns:
+            DataFrame with table data
+        """
+        try:
+            # Extract column headings from table header
+            thead = table_element.find('thead')
+            if not thead:
+                return pd.DataFrame()
+
+            print(thead)
+            # Get heading cells and extract visible inner HTML
+            heading_cells = thead.find_all('th', class_='rgHeader')
+            columns = []
+            for cell in heading_cells:
+                # Get visible inner HTML (text content)
+                heading_text = cell.get_text(strip=True)
+                columns.append(heading_text)
+            print('Columns', columns)
+
+            # Extract table rows
+            tbody = table_element.find('tbody', recursive=False)
+            if not tbody:
+                return pd.DataFrame()
+
+            rows_data = []
+            print('Tbody', tbody)
+            for row in tbody.find_all('tr'):
+                cells = row.find_all('td')
+                row_data = []
+
+                for cell in cells:
+                    # Check if cell contains links
+                    link = cell.find('a')
+                    if link:
+                        # Convert link to URL string
+                        onclick = link.get('onclick', '')
+                        url = self._extract_url_from_onclick(onclick)
+
+                        if url:
+                            # Make URL absolute
+                            if url.startswith('/'):
+                                url = self.BASE_URL + url
+                            elif not url.startswith('http'):
+                                url = self.BASE_URL + '/' + url
+                            row_data.append(url)
+                        else:
+                            # Fallback to link text if no onclick
+                            row_data.append(link.get_text(strip=True))
+                    else:
+                        # Regular cell content
+                        row_data.append(cell.get_text(strip=True))
+
+                rows_data.append(row_data)
+
+            print ('Rows data', rows_data)
+            # Create DataFrame
+            df = pd.DataFrame(rows_data, columns=columns)
+            return df
+
+        except Exception as e:
+            print(f"[{self.source_name()}] Error parsing table to dataframe: {e}")
+            return pd.DataFrame()
+
+    def _extract_transcript_urls(self, df: pd.DataFrame, session, incremental: bool, force: bool) -> Generator[str, None, None]:
+        """
+        Extract transcript URLs from the Transcripts column in the dataframe.
+
+        Filters for transcript URLs and checks against database if incremental mode is enabled.
+
+        Args:
+            df: DataFrame with table data
+            session: SQLAlchemy session for database checks
+            incremental: Whether to check database for existing URLs
+            force: Whether to force re-scrape
+
+        Yields:
+            Transcript URLs to process
+        """
+        # Find the Transcripts column
+        transcript_col = None
+        for col in df.columns:
+            if 'transcript' in col.lower():
+                transcript_col = col
+                break
+
+        if transcript_col is None:
+            print(f"[{self.source_name()}] Warning: Transcripts column not found in table")
+            return
+
+        # Iterate through transcript URLs
+        for url in df[transcript_col]:
+            if not url or not isinstance(url, str):
+                continue
+
+            # Skip if not a URL (shouldn't happen but be safe)
+            if not url.startswith('http'):
+                continue
+
+            # Check if already in database (incremental by default)
+            if incremental and not force and session:
+                existing = session.query(Document).filter_by(url=url).first()
+                if existing:
+                    print(f"[{self.source_name()}] Skipping (already in database): {url}")
+                    continue
+
+            yield url
 
     def _extract_and_convert_transcript(self, html_content: str) -> Optional[str]:
         """
