@@ -71,7 +71,8 @@ def cmd_scrape(args):
                 existing = session.query(Document).filter_by(url=obj.url).first()
                 obj.id = existing.id
             elif isinstance(obj, Meeting) and args.full:
-                existing = session.query(Meeting).filter_by(file_number=obj.file_number).first()
+                existing = session.query(Meeting).filter_by(
+                    meeting_file_number=obj.meeting_file_number).first()
                 obj.id = existing.id
 
             print(obj)
