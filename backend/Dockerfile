@@ -9,13 +9,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 COPY . /app
 WORKDIR /app
 
-# Allow statements and log messages to immediately appear in the logs
-ENV PYTHONUNBUFFERED=1
-
 # Install dependencies
 RUN uv sync
 
 EXPOSE $PORT
 
 # Run the FastMCP server
-CMD ["uv", "run", "server.py"]
+CMD ["uv", "run", "main.py", "serve"]
