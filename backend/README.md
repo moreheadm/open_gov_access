@@ -56,8 +56,7 @@ supervisor-votes/
 │   └── main.py         # FastAPI application
 │
 └── data/
-    ├── supervisor_votes.db   # SQLite database
-    └── state/                # Scraper state
+    └── supervisor_votes.db   # SQLite database
 ```
 
 ## Quick Start
@@ -137,7 +136,7 @@ python main.py stats                      # Show database stats
 
 ### Reset
 ```bash
-python main.py reset                      # Reset scraper state
+python main.py reset                      # Reset scraper state (database-driven, no file state)
 ```
 
 ## API Endpoints

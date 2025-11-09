@@ -25,6 +25,7 @@ from models.database import (
     OfficialType,
     VoteType,
 )
+from .admin import router as admin_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -41,6 +42,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include admin router
+app.include_router(admin_router)
 
 # Database setup
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://opengov:opengov@localhost:5432/open_gov_access")
