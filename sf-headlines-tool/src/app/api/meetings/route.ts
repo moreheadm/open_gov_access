@@ -10,10 +10,14 @@ interface BackendMeeting {
   meeting_type: string;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Fetch meetings from backend API
-    const response = await fetch(`${BACKEND_API_URL}/api/meetings?limit=50`, {
+    // Get query parameters
+    const { searchParams } = new URL(request.url);
+    const month = searchParams.get('month') || 'all';
+
+    // Fetch meetings from backend API with month filter
+    const response = await fetch(`${BACKEND_API_URL}/api/meetings?limit=100&month=${month}`, {
       headers: {
         'Accept': 'application/json',
       },

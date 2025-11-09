@@ -21,11 +21,10 @@ export default function MeetingSelector({ onMeetingSelect }: MeetingSelectorProp
       try {
         const response = await fetch('/api/meetings?month=all');
         if (!response.ok) throw new Error('Failed to fetch meetings');
-        
+
         const data = await response.json();
-        setMeetings(data);
-        
-        // Extract unique months
+
+        // Extract unique months for the dropdown
         const months = [...new Set(data.map((m: Meeting) => m.month))].sort().reverse();
         setUniqueMonths(months);
         setIsLoading(false);
@@ -45,7 +44,7 @@ export default function MeetingSelector({ onMeetingSelect }: MeetingSelectorProp
       try {
         const response = await fetch(`/api/meetings?month=${selectedMonth}`);
         if (!response.ok) throw new Error('Failed to fetch meetings');
-        
+
         const data = await response.json();
         setMeetings(data);
         setError(null);
@@ -56,9 +55,8 @@ export default function MeetingSelector({ onMeetingSelect }: MeetingSelectorProp
       }
     };
 
-    if (selectedMonth !== 'all' || meetings.length === 0) {
-      fetchMeetingsByMonth();
-    }
+    // Always fetch when month changes (including when it changes to 'all')
+    fetchMeetingsByMonth();
   }, [selectedMonth]);
 
   const formatMonth = (monthStr: string) => {
