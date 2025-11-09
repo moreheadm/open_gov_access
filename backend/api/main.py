@@ -563,6 +563,7 @@ def get_meeting_summary(
         .filter(Document.source == "legistar")
         .filter(Document.content_format == ContentFormat.HTML)
         .filter(Document.url.contains("Transcript"))
+        .filter(Document.meeting_id == meeting_id)
         .first()
     )
 
