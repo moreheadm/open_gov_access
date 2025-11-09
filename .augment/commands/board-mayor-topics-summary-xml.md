@@ -65,3 +65,6 @@ Output requirements:
 
 - Never include explanatory prose or status messages in the XML file itself.
 - The only stdout output should be the confirmation message with the output file path.
+- Make sure to include one moment for each supervisor and mayor. if they said nothing mention that.
+- IMPORTANT: Do not write or execute any code
+- Just view the file, parse yourself and write the ouput. You can use grep on the file but nothing else and only for the names of the supervisors and mayor. You probably don't need to.

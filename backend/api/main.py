@@ -14,6 +14,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
+# Cache directory for XML summaries
+CACHE_DIR = Path(__file__).parent.parent / "cache" / "meeting_summaries"
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
@@ -581,6 +585,64 @@ def get_meeting_summary(
             detail=f"No transcript found for meeting {meeting_id}"
         )
 
+    # Check if we have a cached XML file
+    cache_file = CACHE_DIR / f"meeting_{meeting_id}_summary.xml"
+
+    if cache_file.exists():
+        print(f"Using cached summary for meeting {meeting_id}")
+        with open(cache_file, 'r', encoding='utf-8') as f:
+            xml_content = f.read()
+
+        # Fix common XML issues from Auggie output
+        xml_content = xml_content.replace(r'<\![CDATA[', '<![CDATA[')
+
+        # Parse and return cached XML
+        try:
+            root = ET.fromstring(xml_content)
+        except ET.ParseError as e:
+            print(f"Cached XML is corrupted for meeting {meeting_id}, regenerating...")
+            # Delete corrupted cache and continue to regenerate
+            cache_file.unlink()
+        else:
+            # Successfully parsed cached XML, extract and return data
+            people = []
+            for person_elem in root.findall('person'):
+                person_name = person_elem.get('name', '')
+                person_role = person_elem.get('role', '')
+
+                moments = []
+                for moment_elem in person_elem.findall('moment'):
+                    moment_id = moment_elem.get('id', '')
+                    headline = moment_elem.findtext('headline', '')
+
+                    summary_elem = moment_elem.find('summary')
+                    summary = summary_elem.text.strip() if summary_elem is not None and summary_elem.text else ''
+
+                    timestamps = moment_elem.findtext('timestamps', '')
+
+                    moments.append(MomentSummary(
+                        id=moment_id,
+                        headline=headline,
+                        summary=summary,
+                        timestamps=timestamps
+                    ))
+
+                people.append(PersonSummary(
+                    name=person_name,
+                    role=person_role,
+                    moments=moments
+                ))
+
+            return MeetingSummaryResponse(
+                meeting_id=meeting.id,
+                meeting_title=meeting.meeting_title,
+                meeting_datetime=meeting.meeting_datetime,
+                people=people
+            )
+
+    # No cache found, generate new summary
+    print(f"Generating new summary for meeting {meeting_id}")
+
     # Extract transcript text from HTML
     if transcript_doc.converted_content:
         # Use converted markdown content if available
@@ -601,9 +663,8 @@ def get_meeting_summary(
         transcript_file.write(transcript_text)
         transcript_path = transcript_file.name
 
-    # Create temporary output file path
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as output_file:
-        output_path = output_file.name
+    # Use cache file as output path
+    output_path = str(cache_file)
 
     # Create officials JSON with current supervisors and mayor
     officials_data = {
@@ -735,11 +796,13 @@ def get_meeting_summary(
         )
 
     finally:
-        # Clean up temporary files
+        # Clean up temporary files (but keep the cached XML)
         try:
-            Path(transcript_path).unlink()
-            Path(output_path).unlink()
-            Path(officials_path).unlink()
+            if 'transcript_path' in locals():
+                Path(transcript_path).unlink()
+            if 'officials_path' in locals():
+                Path(officials_path).unlink()
+            # Don't delete output_path - it's our cache file!
         except Exception:
             pass  # Ignore cleanup errors
 
