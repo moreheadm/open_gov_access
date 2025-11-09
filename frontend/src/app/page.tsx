@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import SearchBar, { type SearchFilters } from "@/components/SearchBar";
 import FiltersSidebar from "@/components/FiltersSidebar";
 import SearchResultsContainer from "@/components/SearchResultsContainer";
-import { fetchLegislation } from "@/lib/api";
+// import { fetchLegislation } from "@/lib/api";
 import type { Legislation, Supervisor } from "@/types/legislation";
 import LegislationCard from "@/components/LegislationCard";
 
@@ -58,7 +58,11 @@ export default function Page() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await fetchLegislation();
+          // const data = await fetchLegislation();
+          const data = {
+              legislation: [],
+              supervisors: []
+          };
         const legislation = data?.legislation ?? [];
         const sups = data?.supervisors ?? [];
 
@@ -94,7 +98,11 @@ export default function Page() {
       setQuery(nextQuery);
       setFilters(nextFilters);
 
-      const data = await fetchLegislation(nextQuery);
+          const data = {
+              legislation: [],
+              supervisors: []
+          };
+        //const data = await fetchLegislation(nextQuery);
       const legislation = data?.legislation ?? [];
       const sups = data?.supervisors ?? [];
 

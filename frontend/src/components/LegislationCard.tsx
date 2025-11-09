@@ -26,7 +26,7 @@ export default function LegislationCard({ legislation, supervisors }: Props) {
   };
 
   const yesVotes = Object.entries(legislation.votes || {}).filter(
-    ([, v]) => v === "yes"
+    ([, v]) => v === "aye"
   );
   const noVotes = Object.entries(legislation.votes || {}).filter(
     ([, v]) => v === "no"
