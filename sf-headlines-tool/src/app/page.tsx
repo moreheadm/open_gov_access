@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import MeetingSelector from '@/components/MeetingSelector';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import InitialsPrompt from '@/components/InitialsPrompt';
-import { meetings } from '@/data/meetings';
 
 export default function HomePage() {
   const router = useRouter();
@@ -42,7 +41,6 @@ export default function HomePage() {
         />
       ) : (
         <MeetingSelector 
-          meetings={meetings}
           onMeetingSelect={handleMeetingSelect}
         />
       )}
