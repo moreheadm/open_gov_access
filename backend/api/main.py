@@ -645,6 +645,9 @@ def get_meeting_summary(
             )
 
         if result.returncode != 0:
+            print(f"Auggie command failed with return code {result.returncode}")
+            print(f"STDOUT: {result.stdout}")
+            print(f"STDERR: {result.stderr}")
             raise HTTPException(
                 status_code=500,
                 detail=f"Auggie command failed: {result.stderr}"
@@ -657,11 +660,36 @@ def get_meeting_summary(
                 detail="Auggie command did not produce output file"
             )
 
-        with open(output_path, 'r') as f:
+        with open(output_path, 'r', encoding='utf-8') as f:
             xml_content = f.read()
 
-        # Parse XML
-        root = ET.fromstring(xml_content)
+        # Fix common XML issues from Auggie output
+        # The Auggie command sometimes incorrectly escapes CDATA tags as <\![CDATA[ instead of <![CDATA[
+        xml_content = xml_content.replace(r'<\![CDATA[', '<![CDATA[')
+        xml_content = xml_content.replace(r']]>', ']]>')
+
+        # Parse XML with better error handling
+        try:
+            root = ET.fromstring(xml_content)
+        except ET.ParseError as e:
+            # Log the XML content for debugging
+            print(f"\n{'='*80}")
+            print(f"XML Parse Error for meeting {meeting_id}: {e}")
+            print(f"{'='*80}")
+            print("Full XML Content:")
+            print(xml_content)
+            print(f"{'='*80}\n")
+
+            # Save the problematic XML to a file for inspection
+            error_xml_path = f"/tmp/meeting_{meeting_id}_error.xml"
+            with open(error_xml_path, 'w', encoding='utf-8') as error_file:
+                error_file.write(xml_content)
+            print(f"Saved problematic XML to: {error_xml_path}")
+
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to parse XML output from Auggie command: {str(e)}. XML saved to {error_xml_path} for inspection."
+            )
 
         # Extract people and their moments
         people = []

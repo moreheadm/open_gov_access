@@ -14,6 +14,13 @@ export const supervisors: Supervisor[] = [
   { id: 'sherrill', name: 'Stephen Sherrill', handle: '@SFSupSherrill', color: '#06B6D4' },
 ];
 
+export const mayor: Supervisor = {
+  id: 'mayor',
+  name: 'Daniel Lurie',
+  handle: '@SFMayor',
+  color: '#F59E0B' // Amber/gold color for mayor
+};
+
 // Helper function to get supervisor ID from full name
 export function getSupervisorIdFromName(fullName: string): string | null {
   const supervisor = supervisors.find(

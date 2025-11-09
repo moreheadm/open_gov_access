@@ -7,7 +7,7 @@ import SupervisorWheel from '@/components/SupervisorWheel';
 import HeadlineCard from '@/components/HeadlineCard';
 import InitialsPrompt from '@/components/InitialsPrompt';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { supervisors } from '@/data/supervisors';
+import { supervisors, mayor } from '@/data/supervisors';
 import { HeadlinesData, Headline } from '@/types';
 
 function HeadlinesContent() {
@@ -119,7 +119,10 @@ function HeadlinesContent() {
     router.push('/');
   };
 
-  const selectedSupervisorData = supervisors.find(s => s.id === selectedSupervisor);
+  // Get the selected official (supervisor or mayor)
+  const selectedSupervisorData = selectedSupervisor === 'mayor'
+    ? mayor
+    : supervisors.find(s => s.id === selectedSupervisor);
 
   if (isLoading) {
     return (
@@ -191,7 +194,7 @@ function HeadlinesContent() {
             {!selectedSupervisor && (
               <div className="text-center text-gray-400 py-24">
                 <Circle className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p className="text-xl">Click a supervisor in the wheel to view their headlines</p>
+                <p className="text-xl">Click a supervisor or the mayor in the wheel to view their headlines</p>
               </div>
             )}
           </div>

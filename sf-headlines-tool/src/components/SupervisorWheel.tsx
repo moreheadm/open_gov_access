@@ -28,7 +28,7 @@ export default function SupervisorWheel({
 
   return (
     <div className="w-full lg:w-1/2 flex flex-col items-center">
-      <h2 className="text-2xl font-bold mb-4">Select a Supervisor</h2>
+      <h2 className="text-2xl font-bold mb-4">Select a Supervisor or Mayor</h2>
       <p className="text-sm text-gray-400 mb-6">Hover and click to view headlines • Scroll to rotate</p>
       
       <div 
@@ -36,10 +36,13 @@ export default function SupervisorWheel({
         onWheel={handleWheel}
       >
         {/* Center circle with Mayor */}
-        <div 
-          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex flex-col items-center justify-center shadow-2xl z-10 border-4 border-yellow-300 cursor-pointer transition-transform hover:scale-110"
+        <div
+          className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex flex-col items-center justify-center shadow-2xl z-10 border-4 cursor-pointer transition-transform hover:scale-110 ${
+            selectedSupervisor === 'mayor' ? 'border-white ring-4 ring-white' : 'border-yellow-300'
+          }`}
           onMouseEnter={() => setHoveredSupervisor('mayor')}
           onMouseLeave={() => setHoveredSupervisor(null)}
+          onClick={() => onSupervisorSelect('mayor')}
         >
           <span className="text-xl font-bold text-center">🏛️</span>
           <span className="text-sm font-bold text-center mt-1">Mayor</span>
@@ -51,6 +54,9 @@ export default function SupervisorWheel({
               <p className="text-sm text-amber-400">Mayor of San Francisco</p>
               <div className="mt-2 pt-2 border-t border-gray-700">
                 <p className="text-xs text-gray-300">
+                  {headlines['mayor']?.length || 0} headline(s) generated
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
                   Elected November 2024
                 </p>
               </div>

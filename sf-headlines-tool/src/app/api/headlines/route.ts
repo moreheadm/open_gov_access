@@ -66,12 +66,12 @@ export async function GET(request: Request) {
       }
 
       // Transform moments into headlines
-      headlines[supervisorId] = person.moments.map((moment, index) => {
+      headlines[officialId] = person.moments.map((moment, index) => {
         // Format the text: <strong>(headline)</strong> summary [timestamps]
         const formattedText = `<strong>(${moment.headline})</strong> ${moment.summary} [${moment.timestamps}]`;
 
         const headline: Headline = {
-          id: `${supervisorId}-${moment.id}`,
+          id: `${officialId}-${moment.id}`,
           text: formattedText,
           factChecks: 0,
           isActive: false,
