@@ -21,6 +21,7 @@ interface PersonSummary {
 
 interface MeetingSummaryResponse {
   meeting_id: number;
+  meeting_title?: string;
   meeting_datetime: string;
   people: PersonSummary[];
 }
@@ -83,11 +84,22 @@ export async function GET(request: Request) {
       });
     }
 
-    return NextResponse.json(headlines);
+    // Return both headlines and meeting metadata
+    return NextResponse.json({
+      headlines,
+      meeting: {
+        id: data.meeting_id,
+        title: data.meeting_title,
+        datetime: data.meeting_datetime,
+      }
+    });
 
   } catch (error) {
     console.error('Error fetching meeting summary:', error);
     // Fallback to mock data on error
-    return NextResponse.json(mockHeadlinesData);
+    return NextResponse.json({
+      headlines: mockHeadlinesData,
+      meeting: null
+    });
   }
 }

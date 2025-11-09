@@ -137,6 +137,7 @@ class MeetingBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    meeting_title: Optional[str] = None
     meeting_datetime: datetime
     meeting_type: str
 
@@ -532,6 +533,7 @@ class PersonSummary(BaseModel):
 class MeetingSummaryResponse(BaseModel):
     """Response model for meeting summary endpoint"""
     meeting_id: int
+    meeting_title: Optional[str] = None
     meeting_datetime: datetime
     people: List[PersonSummary]
 
@@ -699,6 +701,7 @@ def get_meeting_summary(
 
         return MeetingSummaryResponse(
             meeting_id=meeting.id,
+            meeting_title=meeting.meeting_title,
             meeting_datetime=meeting.meeting_datetime,
             people=people
         )
