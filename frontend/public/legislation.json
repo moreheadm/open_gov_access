@@ -1,0 +1,184 @@
+{
+  "legislation": [
+    {
+      "id": 1,
+      "legislation_number": "250657",
+      "title": "Development Impact Fees for Residential Development Projects",
+      "description": "Ordinance amending the Building and Planning Codes to comply with California Government Code, Section 66007, by postponing the collection of development impact fees for designated residential development projects.",
+      "type": "Ordinance",
+      "category": "Housing",
+      "status": "Passed",
+      "dates": {
+        "introduced": "2024-09-01",
+        "final_action": "2024-10-15"
+      },
+      "sponsors": [
+        {
+          "name": "Bilal Mahmood",
+          "is_mayor": false
+        },
+        {
+          "name": "Matt Dorsey",
+          "is_mayor": false
+        },
+        {
+          "name": "Daniel Lurie",
+          "is_mayor": true
+        }
+      ],
+      "committee": {
+        "name": "Land Use and Transportation Committee",
+        "members": ["Myrna Melgar", "Connie Chan", "Bilal Mahmood"]
+      },
+      "legislation_url": "https://sfgov.legistar.com/LegislationDetail.aspx?ID=250657",
+      "votes": {
+        "Connie Chan": "aye",
+        "Catherine Stefani": "aye",
+        "Aaron Peskin": "aye",
+        "Joel Engardio": "aye",
+        "Dean Preston": "aye",
+        "Matt Dorsey": "aye",
+        "Myrna Melgar": "aye",
+        "Rafael Mandelman": "aye",
+        "Jackie Fielder": "no",
+        "Shamann Walton": "aye",
+        "Ahsha Safai": "aye"
+      }
+    },
+    {
+      "id": 2,
+      "legislation_number": "240789",
+      "title": "Climate Action Plan Implementation",
+      "description": "Resolution supporting the implementation of the 2024 Climate Action Plan and establishing funding mechanisms for renewable energy projects.",
+      "type": "Resolution",
+      "category": "Environment",
+      "status": "Passed",
+      "dates": {
+        "introduced": "2024-08-15",
+        "final_action": "2024-09-30"
+      },
+      "sponsors": [
+        {
+          "name": "Dean Preston",
+          "is_mayor": false
+        }
+      ],
+      "committee": {
+        "name": "Environment Committee",
+        "members": ["Dean Preston", "Rafael Mandelman", "Joel Engardio"]
+      },
+      "legislation_url": "https://sfgov.legistar.com/LegislationDetail.aspx?ID=240789",
+      "votes": {
+        "Connie Chan": "aye",
+        "Catherine Stefani": "aye",
+        "Aaron Peskin": "aye",
+        "Joel Engardio": "aye",
+        "Dean Preston": "aye",
+        "Matt Dorsey": "aye",
+        "Myrna Melgar": "aye",
+        "Rafael Mandelman": "aye",
+        "Jackie Fielder": "aye",
+        "Shamann Walton": "no",
+        "Ahsha Safai": "aye"
+      }
+    },
+    {
+      "id": 3,
+      "legislation_number": "241234",
+      "title": "Small Business Tax Relief Act",
+      "description": "Ordinance providing temporary tax relief for small businesses affected by economic downturns, including extended payment deadlines and reduced penalties.",
+      "type": "Ordinance",
+      "category": "Economic Development",
+      "status": "Passed",
+      "dates": {
+        "introduced": "2024-07-10",
+        "final_action": "2024-08-25"
+      },
+      "sponsors": [
+        {
+          "name": "Matt Dorsey",
+          "is_mayor": false
+        },
+        {
+          "name": "Ahsha Safai",
+          "is_mayor": false
+        }
+      ],
+      "committee": {
+        "name": "Budget and Finance Committee",
+        "members": ["Matt Dorsey", "Ahsha Safai", "Catherine Stefani"]
+      },
+      "legislation_url": "https://sfgov.legistar.com/LegislationDetail.aspx?ID=241234",
+      "votes": {
+        "Connie Chan": "aye",
+        "Catherine Stefani": "aye",
+        "Aaron Peskin": "no",
+        "Joel Engardio": "aye",
+        "Dean Preston": "no",
+        "Matt Dorsey": "aye",
+        "Myrna Melgar": "aye",
+        "Rafael Mandelman": "aye",
+        "Jackie Fielder": "aye",
+        "Shamann Walton": "aye",
+        "Ahsha Safai": "aye"
+      }
+    }
+  ],
+  "supervisors": [
+    {
+      "name": "Connie Chan",
+      "district": 1,
+      "initials": "CC"
+    },
+    {
+      "name": "Catherine Stefani",
+      "district": 2,
+      "initials": "CS"
+    },
+    {
+      "name": "Aaron Peskin",
+      "district": 3,
+      "initials": "AP"
+    },
+    {
+      "name": "Joel Engardio",
+      "district": 4,
+      "initials": "JE"
+    },
+    {
+      "name": "Dean Preston",
+      "district": 5,
+      "initials": "DP"
+    },
+    {
+      "name": "Matt Dorsey",
+      "district": 6,
+      "initials": "MD"
+    },
+    {
+      "name": "Myrna Melgar",
+      "district": 7,
+      "initials": "MM"
+    },
+    {
+      "name": "Rafael Mandelman",
+      "district": 8,
+      "initials": "RM"
+    },
+    {
+      "name": "Jackie Fielder",
+      "district": 9,
+      "initials": "JF"
+    },
+    {
+      "name": "Shamann Walton",
+      "district": 10,
+      "initials": "SW"
+    },
+    {
+      "name": "Ahsha Safai",
+      "district": 11,
+      "initials": "AS"
+    }
+  ]
+}
