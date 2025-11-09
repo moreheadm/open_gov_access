@@ -1,28 +1,71 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TrendingUp, ChevronDown } from 'lucide-react';
 import { Meeting } from '@/types';
 
 interface MeetingSelectorProps {
-  meetings: Meeting[];
   onMeetingSelect: (meetingId: string) => void;
 }
 
-export default function MeetingSelector({ meetings, onMeetingSelect }: MeetingSelectorProps) {
+export default function MeetingSelector({ onMeetingSelect }: MeetingSelectorProps) {
   const [selectedMonth, setSelectedMonth] = useState('all');
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [uniqueMonths, setUniqueMonths] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const uniqueMonths = [...new Set(meetings.map(m => m.month))].sort().reverse();
-  
+  // Fetch all meetings on initial load to get unique months
+  useEffect(() => {
+    const fetchAllMeetings = async () => {
+      try {
+        const response = await fetch('/api/meetings?month=all');
+        if (!response.ok) throw new Error('Failed to fetch meetings');
+        
+        const data = await response.json();
+        setMeetings(data);
+        
+        // Extract unique months
+        const months = [...new Set(data.map((m: Meeting) => m.month))].sort().reverse();
+        setUniqueMonths(months);
+        setIsLoading(false);
+      } catch (err) {
+        setError('Failed to load meetings');
+        setIsLoading(false);
+      }
+    };
+
+    fetchAllMeetings();
+  }, []);
+
+  // Fetch meetings when month changes
+  useEffect(() => {
+    const fetchMeetingsByMonth = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`/api/meetings?month=${selectedMonth}`);
+        if (!response.ok) throw new Error('Failed to fetch meetings');
+        
+        const data = await response.json();
+        setMeetings(data);
+        setError(null);
+      } catch (err) {
+        setError('Failed to load meetings for selected month');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (selectedMonth !== 'all' || meetings.length === 0) {
+      fetchMeetingsByMonth();
+    }
+  }, [selectedMonth]);
+
   const formatMonth = (monthStr: string) => {
     const [year, month] = monthStr.split('-');
     const date = new Date(parseInt(year), parseInt(month) - 1);
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
-
-  const filteredMeetings = selectedMonth === 'all' 
-    ? meetings 
-    : meetings.filter(m => m.month === selectedMonth);
 
   return (
     <div className="flex items-center justify-center min-h-[70vh] px-8">
@@ -41,6 +84,7 @@ export default function MeetingSelector({ meetings, onMeetingSelect }: MeetingSe
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="w-full px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:border-blue-500 focus:outline-none cursor-pointer"
+            disabled={isLoading}
           >
             <option value="all">All Meetings</option>
             {uniqueMonths.map(month => (
@@ -51,9 +95,20 @@ export default function MeetingSelector({ meetings, onMeetingSelect }: MeetingSe
           </select>
         </div>
         
+        {error && (
+          <div className="mb-4 p-4 bg-red-900/30 border border-red-500 rounded-lg text-center">
+            <p className="text-sm text-red-300">{error}</p>
+          </div>
+        )}
+        
         <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-          {filteredMeetings.length > 0 ? (
-            filteredMeetings.map(meeting => (
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p className="text-gray-400">Loading meetings...</p>
+            </div>
+          ) : meetings.length > 0 ? (
+            meetings.map(meeting => (
               <button
                 key={meeting.id}
                 onClick={() => onMeetingSelect(meeting.id)}
