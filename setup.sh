@@ -52,7 +52,7 @@ if [ "$USE_DOCKER" = true ]; then
     sleep 5
     
     # Check if PostgreSQL is ready
-    until docker-compose exec -T postgres pg_isready -U postgres &> /dev/null; do
+    until docker-compose exec -T postgres pg_isready -U opengov &> /dev/null; do
         echo "   Still waiting..."
         sleep 2
     done
@@ -61,7 +61,7 @@ if [ "$USE_DOCKER" = true ]; then
 else
     echo ""
     echo "⚠️  Please ensure PostgreSQL is running and create a database:"
-    echo "   createdb supervisor_votes"
+    echo "   createdb open_gov_access"
     echo ""
     read -p "Press Enter when ready to continue..."
 fi

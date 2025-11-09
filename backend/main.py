@@ -4,11 +4,12 @@ Main CLI for Supervisor Votes system
 
 Commands:
   init        - Initialize database and seed supervisors
-  scrape      - Scrape documents from SF BOS website
+  scrape      - Scrape documents from Legistar
   process     - Process scraped documents (ETL)
   run         - Run scrape + process pipeline
   serve       - Start API server
   reset       - Reset scraper state
+  pdf2md      - Convert PDF to Markdown using PyMuPDF
 """
 
 import argparse
@@ -19,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from models.database import init_db, get_session, seed_officials, seed_example_data
-from scrapers.sfbos import SFBOSScraper
+from scrapers.legistar import LegistarScraper
 from etl.pipeline import ETLPipeline
 from config import settings
 
@@ -43,60 +44,85 @@ def cmd_init(args):
 
 
 def cmd_scrape(args):
-    """Scrape documents"""
+    """Scrape documents and save to database"""
     print("Starting scraper...")
-    
-    scraper = SFBOSScraper(state_dir=args.state_dir)
-    
-    documents = scraper.scrape(
+
+    # Initialize database
+    engine = init_db(args.database)
+    session = get_session(engine)
+
+    scraper = LegistarScraper(
+        state_dir=args.state_dir,
+        headless=not args.show_browser,
+        convert_with_ai=args.convert_with_ai
+    )
+
+    # Scrape and save documents
+    count = 0
+    for doc in scraper.scrape(
         limit=args.limit,
         incremental=not args.full,
-        force=args.force
-    )
-    
-    if documents and args.save:
-        # Save scraped documents
-        save_dir = Path(args.save)
-        save_dir.mkdir(parents=True, exist_ok=True)
-        
-        for doc in documents:
-            filename = f"{doc.doc_id}.pdf"
-            filepath = save_dir / filename
-            filepath.write_bytes(doc.raw_content)
-        
-        print(f"✓ Saved {len(documents)} documents to {save_dir}")
-    
-    return documents
+        force=args.force,
+        session=session
+    ):
+        try:
+            # Add to database
+            session.add(doc)
+            session.commit()
+            count += 1
+            print(f"✓ Saved document: {doc.url}")
+        except Exception as e:
+            print(f"✗ Error saving document {doc.url}: {e}")
+            session.rollback()
+
+    session.close()
+    print(f"✓ Scraped and saved {count} documents to database")
+
+    return count
 
 
 def cmd_process(args):
-    """Process scraped documents with ETL pipeline"""
-    print("Starting ETL pipeline...")
-    
+    """Scrape documents and process with ETL pipeline"""
+    print("Starting scrape + ETL pipeline...")
+
     # Initialize database and ETL
     engine = init_db(args.database)
+    session = get_session(engine)
     etl = ETLPipeline(engine)
-    
+
     # Scrape documents
-    scraper = SFBOSScraper(state_dir=args.state_dir)
-    documents = scraper.scrape(
+    scraper = LegistarScraper(
+        state_dir=args.state_dir,
+        headless=not args.show_browser,
+        convert_with_ai=args.convert_with_ai
+    )
+
+    count = 0
+    for doc in scraper.scrape(
         limit=args.limit,
         incremental=not args.full,
-        force=args.force
-    )
-    
-    # Process each document
-    for doc in documents:
+        force=args.force,
+        session=session
+    ):
         try:
+            # Add to database
+            session.add(doc)
+            session.commit()
+
+            # Process with ETL
             etl.process_document(doc)
+            count += 1
+            print(f"✓ Processed document: {doc.url}")
         except Exception as e:
-            print(f"Error processing {doc.doc_id}: {e}")
+            print(f"✗ Error processing {doc.url}: {e}")
+            session.rollback()
             if args.verbose:
                 import traceback
                 traceback.print_exc()
-    
+
+    session.close()
     etl.close()
-    print("✓ ETL complete")
+    print(f"✓ Scraped and processed {count} documents")
 
 
 def cmd_run(args):
@@ -122,7 +148,7 @@ def cmd_serve(args):
 
 def cmd_reset(args):
     """Reset scraper state"""
-    scraper = SFBOSScraper(state_dir=args.state_dir)
+    scraper = LegistarScraper(state_dir=args.state_dir)
     scraper.reset_state()
     print("✓ Scraper state reset")
 
@@ -132,21 +158,70 @@ def cmd_stats(args):
     engine = init_db(args.database)
     session = get_session(engine)
 
-    from models.database import Meeting, Item, Vote, Supervisor
+    from models.database import Meeting, Legislation, Action, Official
     from sqlalchemy import func
-    
+
     print("\n=== Database Statistics ===")
     print(f"Meetings:     {session.query(func.count(Meeting.id)).scalar()}")
-    print(f"Items:        {session.query(func.count(Item.id)).scalar()}")
-    print(f"Votes:        {session.query(func.count(Vote.id)).scalar()}")
-    print(f"Supervisors:  {session.query(func.count(Supervisor.id)).scalar()}")
-    
+    print(f"Legislation:  {session.query(func.count(Legislation.id)).scalar()}")
+    print(f"Actions:      {session.query(func.count(Action.id)).scalar()}")
+    print(f"Officials:    {session.query(func.count(Official.id)).scalar()}")
+
     # Latest meeting
     latest = session.query(Meeting).order_by(Meeting.meeting_date.desc()).first()
     if latest:
         print(f"Latest meeting: {latest.meeting_date}")
-    
+
     session.close()
+
+
+def cmd_pdf2md(args):
+    """Convert PDF to Markdown using PyMuPDF"""
+    import pymupdf.layout
+    import pymupdf4llm
+    from pathlib import Path
+
+    input_path = Path(args.input)
+
+    if not input_path.exists():
+        print(f"Error: File not found: {input_path}")
+        return
+
+    if not input_path.suffix.lower() == '.pdf':
+        print(f"Error: Input file must be a PDF")
+        return
+
+    print(f"Converting {input_path} to Markdown...")
+
+    try:
+        # Convert PDF to markdown
+        md_text = pymupdf4llm.to_markdown(str(input_path))
+
+        # Determine output path
+        if args.output:
+            output_path = Path(args.output)
+        else:
+            output_path = input_path.with_suffix('.md')
+
+        # Write markdown to file
+        output_path.write_text(md_text, encoding='utf-8')
+
+        print(f"✓ Converted to: {output_path}")
+        print(f"  Size: {len(md_text):,} characters")
+
+        # Show preview if requested
+        if args.preview:
+            lines = md_text.split('\n')
+            preview_lines = min(args.preview, len(lines))
+            print(f"\n--- Preview (first {preview_lines} lines) ---")
+            print('\n'.join(lines[:preview_lines]))
+            print("---")
+
+    except Exception as e:
+        print(f"Error converting PDF: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
 
 
 def main():
@@ -185,6 +260,8 @@ def main():
     parser_scrape.add_argument('--full', action='store_true', help='Full scrape (not incremental)')
     parser_scrape.add_argument('--force', action='store_true', help='Force re-scrape')
     parser_scrape.add_argument('--save', help='Save PDFs to directory')
+    parser_scrape.add_argument('--show-browser', action='store_true', help='Show browser (not headless)')
+    parser_scrape.add_argument('--convert-with-ai', action='store_true', help='Convert documents with AI (default: no)')
     parser_scrape.set_defaults(func=cmd_scrape)
     
     # process
@@ -192,6 +269,8 @@ def main():
     parser_process.add_argument('--limit', type=int, help='Limit number of documents')
     parser_process.add_argument('--full', action='store_true', help='Full processing')
     parser_process.add_argument('--force', action='store_true', help='Force re-process')
+    parser_process.add_argument('--show-browser', action='store_true', help='Show browser (not headless)')
+    parser_process.add_argument('--convert-with-ai', action='store_true', help='Convert documents with AI (default: no)')
     parser_process.set_defaults(func=cmd_process)
     
     # run
@@ -199,6 +278,8 @@ def main():
     parser_run.add_argument('--limit', type=int, help='Limit number of documents')
     parser_run.add_argument('--full', action='store_true', help='Full pipeline')
     parser_run.add_argument('--force', action='store_true', help='Force re-process')
+    parser_run.add_argument('--show-browser', action='store_true', help='Show browser (not headless)')
+    parser_run.add_argument('--convert-with-ai', action='store_true', help='Convert documents with AI (default: no)')
     parser_run.set_defaults(func=cmd_run)
     
     # serve
@@ -215,7 +296,14 @@ def main():
     # stats
     parser_stats = subparsers.add_parser('stats', help='Show statistics')
     parser_stats.set_defaults(func=cmd_stats)
-    
+
+    # pdf2md
+    parser_pdf2md = subparsers.add_parser('pdf2md', help='Convert PDF to Markdown')
+    parser_pdf2md.add_argument('input', help='Input PDF file path')
+    parser_pdf2md.add_argument('-o', '--output', help='Output markdown file path (default: same name as input with .md extension)')
+    parser_pdf2md.add_argument('-p', '--preview', type=int, metavar='N', help='Show first N lines of output')
+    parser_pdf2md.set_defaults(func=cmd_pdf2md)
+
     # Parse arguments
     args = parser.parse_args()
     

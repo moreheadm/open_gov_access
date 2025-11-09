@@ -5,15 +5,15 @@ services:
     image: postgres:15-alpine
     container_name: supervisor_votes_db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: supervisor_votes
+      POSTGRES_USER: opengov
+      POSTGRES_PASSWORD: opengov
+      POSTGRES_DB: open_gov_access
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U opengov"]
       interval: 10s
       timeout: 5s
       retries: 5

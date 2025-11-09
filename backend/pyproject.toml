@@ -18,6 +18,10 @@ dependencies = [
     "python-dateutil>=2.8.0",
     "python-multipart>=0.0.6",
     "httpx>=0.25.0",
+    "pymupdf4llm>=0.1.9",
+    "selenium>=4.38.0",
+    "pymupdf-layout>=1.26.6",
+    "google-generativeai>=0.8.5",
 ]
 
 [project.optional-dependencies]

@@ -24,7 +24,6 @@ from models.database import (
     OfficialType,
     VoteType,
 )
-from scrapers.base import ScrapedDocument
 
 
 class VoteParser:
@@ -327,96 +326,45 @@ class ETLPipeline:
 
         return '\n'.join(markdown_lines)
 
-    def process_document(self, doc: ScrapedDocument) -> Optional[Document]:
+    def process_document(self, doc: Document) -> Optional[Document]:
         """
-        Process a scraped document through the ETL pipeline.
+        Process a document through the ETL pipeline.
 
         Args:
-            doc: Scraped document
+            doc: Document model (already in database)
 
         Returns:
-            Database Document object or None if processing failed
+            Updated Document object or None if processing failed
         """
         try:
-            # 1. Get or create meeting
-            meeting = self._get_or_create_meeting(doc.meeting_date)
+            # Document is already in database, just process its content
+            print(f"Processing document {doc.url}...")
 
-            # 2. Check if document already exists
-            existing_doc = self.session.query(Document).filter_by(doc_id=doc.doc_id).first()
-            if existing_doc:
-                print(f"Document {doc.doc_id} already exists, skipping")
-                return existing_doc
+            # Convert content based on format
+            if doc.content_format.value == 'PDF':
+                # Convert PDF to text and markdown
+                print(f"Converting PDF to text/markdown...")
+                text_content = self.pdf_to_text(doc.raw_content.encode('utf-8'))
+                markdown_content = self.pdf_to_markdown(doc.raw_content.encode('utf-8'))
 
-            # 3. Convert PDF to text and markdown
-            print(f"Converting PDF to text/markdown...")
-            text_content = self.pdf_to_text(doc.raw_content)
-            markdown_content = self.pdf_to_markdown(doc.raw_content)
+                # Update document with converted content
+                doc.converted_content = markdown_content
+                self.session.commit()
 
-            # 4. Create document record
-            db_doc = Document(
-                doc_id=doc.doc_id,
-                meeting_id=meeting.id,
-                source=doc.source,
-                doc_type=DocumentType(doc.doc_type),
-                url=doc.url,
-                raw_content=text_content,  # Store extracted text instead of binary
-                markdown_content=markdown_content,
-            )
-            self.session.add(db_doc)
-            self.session.flush()
+            elif doc.content_format.value == 'HTML':
+                # For HTML, we can extract text or keep as-is
+                # For now, just mark as processed
+                print(f"HTML document, no conversion needed")
 
-            # 5. Extract voting data (only from minutes)
-            if doc.doc_type == 'minutes':
-                print(f"Extracting voting data...")
-                legislation_items = self.vote_parser.extract_legislation(text_content, meeting.id)
-
-                for legislation in legislation_items:
-                    self.session.add(legislation)
-                    self.session.flush()
-
-                    # Extract individual votes
-                    # Find the section of text for this legislation
-                    item_pattern = rf'File\s+(?:No\.|#)\s*{legislation.file_number}(.*?)(?=File\s+(?:No\.|#)|$)'
-                    item_match = re.search(item_pattern, text_content, re.I | re.DOTALL)
-
-                    if item_match:
-                        item_text = item_match.group(1)
-                        actions = self.vote_parser.extract_votes(item_text, legislation)
-
-                        for action in actions:
-                            self.session.add(action)
-
-                print(f"Extracted {len(legislation_items)} legislation items")
-
-            # 6. Commit transaction
-            self.session.commit()
-            print(f"✓ Processed document {doc.doc_id}")
-
-            return db_doc
+            print(f"✓ Processed document {doc.url}")
+            return doc
 
         except Exception as e:
             self.session.rollback()
-            print(f"Error processing document {doc.doc_id}: {e}")
+            print(f"Error processing document {doc.url}: {e}")
             import traceback
             traceback.print_exc()
             return None
-
-    def _get_or_create_meeting(self, meeting_date: datetime) -> Meeting:
-        """Get or create a meeting record"""
-        # Normalize to date only (remove time)
-        meeting_date = meeting_date.replace(hour=0, minute=0, second=0, microsecond=0)
-
-        meeting = self.session.query(Meeting).filter_by(meeting_date=meeting_date).first()
-
-        if not meeting:
-            meeting = Meeting(
-                meeting_date=meeting_date,
-                meeting_type=MeetingType.REGULAR
-            )
-            self.session.add(meeting)
-            self.session.flush()
-
-        return meeting
 
     def close(self):
         """Close database session"""

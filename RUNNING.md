@@ -51,7 +51,7 @@ docker-compose up -d
 
 **Or use an existing PostgreSQL instance:**
 - Make sure PostgreSQL is running
-- Create a database: `createdb supervisor_votes`
+- Create a database: `createdb open_gov_access`
 - Update `.env` with your connection string
 
 #### 4. Configure Environment
@@ -63,7 +63,7 @@ cp .env.example .env
 
 Edit `.env` if needed (default settings work with Docker setup):
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/supervisor_votes
+DATABASE_URL=postgresql://opengov:opengov@localhost:5432/open_gov_access
 ```
 
 #### 5. Initialize Database
