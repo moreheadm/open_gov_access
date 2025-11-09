@@ -1,0 +1,26 @@
+{
+  "hosting": {
+    "public": "frontend/out",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api",
+        "destination": {
+          "run": {
+            "serviceId": "open-gov-access-api",  
+            "region": "us-west1",   
+            "pinTag": true              
+          }
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
