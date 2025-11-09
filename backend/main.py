@@ -5,7 +5,6 @@ Main CLI for Supervisor Votes system
 Commands:
   init        - Initialize database and seed supervisors
   scrape      - Scrape documents from Legistar
-  process     - Process scraped documents (ETL)
   run         - Run scrape + process pipeline
   serve       - Start API server
   reset       - Reset scraper state
@@ -24,7 +23,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 from models.database import init_db, get_session, seed_officials, seed_example_data, Document
 from sqlalchemy import select
 from scrapers.legistar import LegistarScraper
-from etl.pipeline import ETLPipeline
 from config import settings
 
 
@@ -90,7 +88,6 @@ def cmd_process(args):
     # Initialize database and ETL
     engine = init_db(args.database)
     session = get_session(engine)
-    etl = ETLPipeline(engine)
 
     # Scrape documents
     scraper = LegistarScraper(
@@ -109,7 +106,6 @@ def cmd_process(args):
 
             # Process with ETL if it's a Document
             if isinstance(obj, Document):
-                etl.process_document(obj)
                 obj_type = "Document"
                 obj_id = obj.url
             else:
@@ -127,7 +123,6 @@ def cmd_process(args):
                 traceback.print_exc()
 
     session.close()
-    etl.close()
     print(f"✓ Scraped and processed {count} objects")
 
 
