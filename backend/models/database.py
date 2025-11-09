@@ -162,7 +162,9 @@ class Meeting(Base):
     __tablename__ = "meetings"
 
     id = Column(Integer, primary_key=True)
-    meeting_file_number = Column(String(255), nullable=True, index=True)  # e.g., "250657"
+    meeting_title = Column(Text, nullable=True)
+    meeting_file_number = Column(String(255), nullable=True, unique=True, index=True)  # e.g.,
+    # "250657"
     meeting_datetime = Column(DateTime, nullable=False, index=True)
     meeting_type = Column(String(255), nullable=False, default=MeetingType.REGULAR)
     created_at = Column(DateTime, nullable=False, default=func.now())

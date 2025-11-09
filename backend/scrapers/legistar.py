@@ -204,7 +204,8 @@ class LegistarScraper(Scraper):
             meeting = Meeting(
                 meeting_file_number=meeting_file_number,
                 meeting_datetime=meeting_data.get('meeting_datetime'),
-                meeting_type=meeting_data.get('meeting_type', 'Committee Hearing')
+                meeting_type=meeting_data.get('meeting_type', 'Committee Hearing'),
+                meeting_title=meeting_data.get('meeting_name', 'Unknown Meeting')
             )
             yield meeting
 
@@ -387,10 +388,7 @@ class LegistarScraper(Scraper):
                     # Get page source
                     page_content = driver.page_source
 
-                    # For transcripts, extract and convert to markdown (if enabled)
-                    converted_content = None
-                    if self.convert_with_ai:
-                        converted_content = self._extract_and_convert_transcript(page_content)
+                    converted_content = self._extract_and_convert_transcript(page_content)
 
                     # Extract meeting ID from meeting_detail if available
                     meeting_id = None
