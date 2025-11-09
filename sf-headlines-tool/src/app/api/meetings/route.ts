@@ -6,7 +6,7 @@ const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8000';
 
 interface BackendMeeting {
   id: number;
-  meeting_date: string;
+  meeting_datetime: string;
   meeting_type: string;
 }
 
@@ -29,7 +29,7 @@ export async function GET() {
 
     // Transform backend meetings to frontend format
     const transformedMeetings = backendMeetings.map(meeting => {
-      const date = new Date(meeting.meeting_date);
+      const date = new Date(meeting.meeting_datetime);
       const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
       const month = dateStr.substring(0, 7); // YYYY-MM
 

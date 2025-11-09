@@ -134,9 +134,9 @@ class SupervisorStats(BaseModel):
 
 class MeetingBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
-    meeting_date: datetime
+    meeting_datetime: datetime
     meeting_type: str
 
 
@@ -457,7 +457,7 @@ def get_meetings(
     """
     meetings = (
         db.query(Meeting)
-        .order_by(Meeting.meeting_date.desc())
+        .order_by(Meeting.meeting_datetime.desc())
         .limit(limit)
         .all()
     )
@@ -526,7 +526,7 @@ class PersonSummary(BaseModel):
 class MeetingSummaryResponse(BaseModel):
     """Response model for meeting summary endpoint"""
     meeting_id: int
-    meeting_date: datetime
+    meeting_datetime: datetime
     people: List[PersonSummary]
 
 
@@ -686,7 +686,7 @@ def get_meeting_summary(
 
         return MeetingSummaryResponse(
             meeting_id=meeting.id,
-            meeting_date=meeting.meeting_date,
+            meeting_datetime=meeting.meeting_datetime,
             people=people
         )
 

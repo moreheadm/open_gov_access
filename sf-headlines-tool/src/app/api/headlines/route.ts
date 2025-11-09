@@ -21,7 +21,7 @@ interface PersonSummary {
 
 interface MeetingSummaryResponse {
   meeting_id: number;
-  meeting_date: string;
+  meeting_datetime: string;
   people: PersonSummary[];
 }
 

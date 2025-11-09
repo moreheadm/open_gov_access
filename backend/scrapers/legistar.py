@@ -274,7 +274,7 @@ class LegistarScraper(Scraper):
     def scrape(
         self,
         department: str = "BOS and Committees",
-        year: str = "Last Month",
+        year: str = "2025",
         session: Optional[Session] = None
     ) -> Generator[Union[Document, Legislation, Official, Meeting, Action], None, None]:
         """

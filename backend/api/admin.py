@@ -30,7 +30,6 @@ from sqlalchemy.orm import Session
 
 from models.database import init_db, get_session, seed_officials, seed_example_data, Document
 from scrapers.legistar import LegistarScraper
-from etl.pipeline import ETLPipeline
 from config import settings
 
 
