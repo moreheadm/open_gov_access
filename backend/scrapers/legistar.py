@@ -204,7 +204,8 @@ class LegistarScraper(Scraper):
             meeting = Meeting(
                 meeting_file_number=meeting_file_number,
                 meeting_datetime=meeting_data.get('meeting_datetime'),
-                meeting_type=meeting_data.get('meeting_type', 'Committee Hearing')
+                meeting_type=meeting_data.get('meeting_type', 'Committee Hearing'),
+                meeting_title=meeting_data.get('meeting_name', 'Unknown Meeting')
             )
             yield meeting
 
