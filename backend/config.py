@@ -26,9 +26,13 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
+    # State directory for scrapers
+    state_dir: str = "data/state"
+
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra fields from .env
 
 
 settings = Settings()

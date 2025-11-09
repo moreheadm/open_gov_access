@@ -1,0 +1,57 @@
+{
+  "supervisors": [
+    {
+      "name": "Jackie Fielder",
+      "district": 11
+    },
+    {
+      "name": "Shamann Walton",
+      "district": 10
+    },
+    {
+      "name": "Aaron Peskin",
+      "district": 3
+    },
+    {
+      "name": "Connie Chan",
+      "district": 1
+    },
+    {
+      "name": "Catherine Stefani",
+      "district": 2
+    },
+    {
+      "name": "Katy Tang",
+      "district": 4
+    },
+    {
+      "name": "Dean Preston",
+      "district": 5
+    },
+    {
+      "name": "Matt Dorsey",
+      "district": 6
+    },
+    {
+      "name": "Myrna Melgar",
+      "district": 7
+    },
+    {
+      "name": "Rafael Mandelman",
+      "district": 8
+    },
+    {
+      "name": "Nyr Chin",
+      "district": 9
+    },
+    {
+      "name": "Ahsha Safai",
+      "district": 12
+    }
+  ],
+  "mayor": {
+    "name": "London Breed",
+    "twitter": "@LondonBreed"
+  }
+}
+

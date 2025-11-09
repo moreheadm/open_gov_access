@@ -4,8 +4,13 @@ FastAPI application for SF Board of Supervisors voting records.
 Provides REST API endpoints for querying supervisors, votes, items, and statistics.
 """
 
+import json
 import os
+import subprocess
+import tempfile
+import xml.etree.ElementTree as ET
 from datetime import datetime
+from pathlib import Path
 from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -17,6 +22,7 @@ from sqlalchemy.orm import Session
 from models.database import (
     Action,
     ActionType,
+    ContentFormat,
     Document,
     Legislation,
     LegislationStatus,
@@ -25,6 +31,7 @@ from models.database import (
     OfficialType,
     VoteType,
 )
+from utils.transcript_parser import NonAITranscriptParser
 from .admin import router as admin_router
 
 # Initialize FastAPI app
@@ -456,6 +463,25 @@ def get_meetings(
     )
     return meetings
 
+#get meeting by month
+@app.get("/api/meetings/{month}", response_model=List[MeetingBase])
+def get_meetings(
+    limit: int =  Query(20, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """
+    Get list of meetings.
+    
+    Args:
+        limit: Maximum number of results
+    """
+    meetings = (
+        db.query(Meeting)
+        .order_by(Meeting.meeting_date.desc())
+        .limit(limit)
+        .all()
+    )
+    return meetings
 
 @app.get("/api/stats/overview", response_model=OverviewStats)
 def get_overview_stats(db: Session = Depends(get_db)):
@@ -478,4 +504,198 @@ def get_overview_stats(db: Session = Depends(get_db)):
         latest_meeting_date=latest_meeting_date,
         active_supervisors=active_supervisors or 0
     )
+
+
+# Meeting Summary Models and Endpoint
+
+class MomentSummary(BaseModel):
+    """Summary of a single moment/statement by an official"""
+    id: str
+    headline: str
+    summary: str
+    timestamps: str
+
+
+class PersonSummary(BaseModel):
+    """Summary of an official's contributions in a meeting"""
+    name: str
+    role: str  # "supervisor" or "mayor"
+    moments: List[MomentSummary]
+
+
+class MeetingSummaryResponse(BaseModel):
+    """Response model for meeting summary endpoint"""
+    meeting_id: int
+    meeting_date: datetime
+    people: List[PersonSummary]
+
+
+@app.get("/api/meetings/{meeting_id}/summary", response_model=MeetingSummaryResponse)
+def get_meeting_summary(
+    meeting_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get AI-generated summary of meeting topics from transcript.
+
+    This endpoint:
+    1. Fetches the meeting by ID
+    2. Finds the associated transcript document
+    3. Runs the Auggie CLI command to generate XML summary
+    4. Parses the XML and returns structured topic summaries
+
+    Args:
+        meeting_id: Meeting ID
+
+    Returns:
+        MeetingSummaryResponse with topics and summaries
+    """
+    # Get meeting
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    # Find transcript document for this meeting
+    # For now, we'll look for the first HTML transcript document from legistar source
+    # TODO: In the future, link meetings to documents via a foreign key or metadata field
+    transcript_doc = (
+        db.query(Document)
+        .filter(Document.source == "legistar")
+        .filter(Document.content_format == ContentFormat.HTML)
+        .filter(Document.url.contains("Transcript"))
+        .first()
+    )
+
+    if not transcript_doc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No transcript found for meeting {meeting_id}"
+        )
+
+    # Extract transcript text from HTML
+    if transcript_doc.converted_content:
+        # Use converted markdown content if available
+        transcript_text = transcript_doc.converted_content
+    elif transcript_doc.raw_content:
+        # Parse HTML to extract text
+        parser = NonAITranscriptParser()
+        segments = parser.extract_segments(transcript_doc.raw_content)
+        transcript_text = parser.to_markdown(segments, include_timestamps=True)
+    else:
+        raise HTTPException(
+            status_code=500,
+            detail="Transcript document has no content"
+        )
+
+    # Write transcript to temporary file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as transcript_file:
+        transcript_file.write(transcript_text)
+        transcript_path = transcript_file.name
+
+    # Create temporary output file path
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as output_file:
+        output_path = output_file.name
+
+    # Create officials JSON with current supervisors and mayor
+    officials_data = {
+        "supervisors": [
+            "Beya Alcaraz",
+            "Bilal Mahmood",
+            "Chyanne Chen",
+            "Connie Chan",
+            "Danny Sauter",
+            "Jackie Fielder",
+            "Matt Dorsey",
+            "Myrna Melgar",
+            "Rafael Mandelman",
+            "Shamann Walton",
+            "Stephen Sherrill"
+        ],
+        "mayor": "Daniel Lurie"
+    }
+
+    # Write officials JSON to temporary file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as officials_file:
+        json.dump(officials_data, officials_file)
+        officials_path = officials_file.name
+
+    try:
+        # Run auggie command with officials list
+        # auggie --print command board-mayor-topics-summary-xml <transcript_path> <output_path> <officials_json>
+        result = subprocess.run(
+            ['auggie', '--print', 'command', 'board-mayor-topics-summary-xml', transcript_path, output_path, officials_path],
+            capture_output=True,
+            text=True,
+            timeout=120  # 2 minute timeout
+        )
+
+        if result.returncode != 0:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Auggie command failed: {result.stderr}"
+            )
+
+        # Read and parse XML output
+        if not Path(output_path).exists():
+            raise HTTPException(
+                status_code=500,
+                detail="Auggie command did not produce output file"
+            )
+
+        with open(output_path, 'r') as f:
+            xml_content = f.read()
+
+        # Parse XML
+        root = ET.fromstring(xml_content)
+
+        # Extract people and their moments
+        people = []
+        for person_elem in root.findall('person'):
+            person_name = person_elem.get('name', '')
+            person_role = person_elem.get('role', '')
+
+            # Extract moments for this person
+            moments = []
+            for moment_elem in person_elem.findall('moment'):
+                moment_id = moment_elem.get('id', '')
+                headline_elem = moment_elem.find('headline')
+                summary_elem = moment_elem.find('summary')
+                timestamps_elem = moment_elem.find('timestamps')
+
+                headline = headline_elem.text if headline_elem is not None else ''
+
+                # Extract CDATA content from summary
+                summary = ''
+                if summary_elem is not None:
+                    summary = ''.join(summary_elem.itertext()).strip()
+
+                timestamps = timestamps_elem.text if timestamps_elem is not None else ''
+
+                moments.append(MomentSummary(
+                    id=moment_id,
+                    headline=headline,
+                    summary=summary,
+                    timestamps=timestamps
+                ))
+
+            people.append(PersonSummary(
+                name=person_name,
+                role=person_role,
+                moments=moments
+            ))
+
+        return MeetingSummaryResponse(
+            meeting_id=meeting.id,
+            meeting_date=meeting.meeting_date,
+            people=people
+        )
+
+    finally:
+        # Clean up temporary files
+        try:
+            Path(transcript_path).unlink()
+            Path(output_path).unlink()
+            Path(officials_path).unlink()
+        except Exception:
+            pass  # Ignore cleanup errors
 

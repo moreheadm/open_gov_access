@@ -39,7 +39,7 @@ Output requirements:
 - Use this structure:
 
 <meetingNarrative meeting="{TRANSCRIPT_PATH}">
-  <person name="{full-name}" role="{supervisor|mayor}" twitter="{twitter-handle-if-available}">
+  <person name="{full-name}" role="{supervisor|mayor}">
     <moment id="{sequential-id}">
       <headline>{compelling, concise headline capturing the essence or controversy}</headline>
       <summary>
