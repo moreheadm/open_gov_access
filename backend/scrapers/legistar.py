@@ -19,6 +19,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from .base import Scraper
 from models.database import Document, ContentFormat
 from utils.llm import convert_transcript_to_markdown
+from utils.transcript_parser import NonAITranscriptParser
 from sqlalchemy.orm import Session
 
 
@@ -32,7 +33,7 @@ class LegistarScraper(Scraper):
     BASE_URL = "https://sfgov.legistar.com"
     CALENDAR_URL = "https://sfgov.legistar.com/Calendar.aspx"
     
-    def __init__(self, state_dir: str = "data/state", headless: bool = True, convert_with_ai: bool = False):
+    def __init__(self, state_dir: str = "data/state", headless: bool = True, convert_with_ai: bool = False, use_non_ai_parsing: bool = True):
         """
         Initialize Legistar scraper.
 
@@ -44,7 +45,7 @@ class LegistarScraper(Scraper):
         super().__init__(state_dir)
         self.headless = headless
         self.convert_with_ai = convert_with_ai
-    
+
     def source_name(self) -> str:
         return "legistar"
     
@@ -346,9 +347,13 @@ class LegistarScraper(Scraper):
             # Get the HTML content of the div
             transcript_html = str(transcript_div)
 
-            # Convert to markdown using LLM
-            print(f"[{self.source_name()}] Converting transcript to markdown using LLM...")
-            markdown_content = convert_transcript_to_markdown(transcript_html)
+            # Use non-AI parsing if enabled, otherwise use LLM
+            if self.convert_with_ai:
+                print(f"[{self.source_name()}] Converting transcript to markdown using LLM...")
+                markdown_content = convert_transcript_to_markdown(transcript_html)
+            else:
+                print(f"[{self.source_name()}] Converting transcript to markdown using non-AI parser...")
+                markdown_content = NonAITranscriptParser().convert(transcript_html)
 
             return markdown_content
 

@@ -12,14 +12,17 @@ Commands:
   pdf2md      - Convert PDF to Markdown using PyMuPDF
 """
 
+
 import argparse
 import sys
 from pathlib import Path
 
+
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from models.database import init_db, get_session, seed_officials, seed_example_data
+from models.database import init_db, get_session, seed_officials, seed_example_data, Document
+from sqlalchemy import select
 from scrapers.legistar import LegistarScraper
 from etl.pipeline import ETLPipeline
 from config import settings
@@ -67,7 +70,17 @@ def cmd_scrape(args):
     ):
         try:
             # Add to database
-            session.add(doc)
+            statement = select(Document).where(Document.url == doc.url).limit(1)
+            obj = session.execute(statement).scalar_one_or_none()
+
+            if obj:
+                print(f"  Already in database: {doc.url}")
+                if args.full:
+                    doc.id = obj.id
+                else:
+                    continue
+
+            session.merge(doc)
             session.commit()
             count += 1
             print(f"✓ Saved document: {doc.url}")
@@ -106,7 +119,16 @@ def cmd_process(args):
     ):
         try:
             # Add to database
-            session.add(doc)
+            statement = session.query(Document).where(Document.url == doc.url).count(1)
+            obj = session.execute(statement)
+            if obj:
+                print(f"  Already in database: {doc.url}")
+                if args.full:
+                    doc.id = obj.id
+                else:
+                    continue
+
+            session.merge(doc)
             session.commit()
 
             # Process with ETL
