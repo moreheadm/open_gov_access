@@ -175,7 +175,7 @@ class Meeting(Base):
     documents = relationship("Document", back_populates="meeting", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Meeting(date={self.meeting_date}, type={self.meeting_type})>"
+        return f"<Meeting(date={self.meeting_datetime}, type={self.meeting_type})>"
 
 
 class Action(Base):
@@ -369,10 +369,10 @@ def seed_example_data(session: Session):
 
     meetings = []
     for date_str, meeting_type, action_desc in meeting_dates:
-        meeting_date = datetime.strptime(date_str, "%Y-%m-%d")
-        meeting = session.query(Meeting).filter_by(meeting_date=meeting_date).first()
+        meeting_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+        meeting = session.query(Meeting).filter_by(meeting_datetime=meeting_date).first()
         if not meeting:
-            meeting = Meeting(meeting_date=meeting_date, meeting_type=meeting_type)
+            meeting = Meeting(meeting_datetime=meeting_date, meeting_type=meeting_type)
             session.add(meeting)
             session.flush()
         meetings.append((meeting, action_desc))

@@ -150,7 +150,7 @@ class OverviewStats(BaseModel):
     total_meetings: int
     total_items: int
     total_votes: int
-    latest_meeting_date: Optional[datetime]
+    latest_meeting_datetime: Optional[datetime]
     active_supervisors: int
 
 
@@ -505,14 +505,14 @@ def get_overview_stats(db: Session = Depends(get_db)):
         Official.official_type == OfficialType.SUPERVISOR
     ).scalar()
 
-    latest_meeting = db.query(Meeting).order_by(Meeting.meeting_date.desc()).first()
-    latest_meeting_date = latest_meeting.meeting_date if latest_meeting else None
+    latest_meeting = db.query(Meeting).order_by(Meeting.meeting_datetime.desc()).first()
+    latest_meeting_datetime = latest_meeting.meeting_datetime if latest_meeting else None
 
     return OverviewStats(
         total_meetings=total_meetings or 0,
         total_items=total_legislation or 0,
         total_votes=total_actions or 0,
-        latest_meeting_date=latest_meeting_date,
+        latest_meeting_datetime=latest_meeting_datetime,
         active_supervisors=active_supervisors or 0
     )
 

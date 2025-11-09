@@ -66,9 +66,19 @@ def cmd_scrape(args):
     count = 0
     for obj in scraper.scrape(session=session):
         try:
-            # Add to database
+            # If document query for document and not full scrape, query for same URL
+            if isinstance(obj, Document) and args.full:
+                existing = session.query(Document).filter_by(url=obj.url).first()
+                obj.id = existing.id
+            elif isinstance(obj, Meeting) and args.full:
+                existing = session.query(Meeting).filter_by(file_number=obj.file_number).first()
+                obj.id = existing.id
+
+            print(obj)
+
             session.merge(obj)
             session.commit()
+
             count += 1
             obj_type = type(obj).__name__
             obj_id = getattr(obj, 'url', getattr(obj, 'file_number', getattr(obj, 'name', 'unknown')))
@@ -82,63 +92,6 @@ def cmd_scrape(args):
     print(f"✓ Scraped and saved {count} objects to database")
 
     return count
-
-
-def cmd_process(args):
-    """Scrape documents and process with ETL pipeline"""
-    print("Starting scrape + ETL pipeline...")
-
-    # Initialize database and ETL
-    engine = init_db(args.database)
-    session = get_session(engine)
-
-    # Scrape documents
-    scraper = LegistarScraper(
-        headless=not args.show_browser,
-        convert_with_ai=args.convert_with_ai,
-        limit=args.limit,
-        incremental=not args.full
-    )
-
-    count = 0
-    for obj in scraper.scrape(session=session):
-        try:
-            # If document query for document and not full scrape, query for same URL
-            if isinstance(obj, Document) and args.full:
-                existing = session.query(Document).filter_by(url=obj.url).first()
-                obj.id = existing.id
-            elif isinstance(obj, Meeting) and args.full:
-                existing = session.query(Meeting).filter_by(file_number=obj.file_number).first()
-                obj.id = existing.id
-
-            # Add to database
-            session.merge(obj)
-            session.commit()
-
-            if isinstance(obj, Document):
-                obj_type = "Document"
-                obj_id = obj.url
-            else:
-                obj_type = type(obj).__name__
-                obj_id = getattr(obj, 'url', getattr(obj, 'file_number', getattr(obj, 'name', 'unknown')))
-
-            count += 1
-            print(f"✓ Processed {obj_type}: {obj_id}")
-        except Exception as e:
-            obj_type = type(obj).__name__
-            print(f"✗ Error processing {obj_type}: {e}")
-            session.rollback()
-            if args.verbose:
-                import traceback
-                traceback.print_exc()
-
-    session.close()
-    print(f"✓ Scraped and processed {count} objects")
-
-
-def cmd_run(args):
-    """Run full pipeline: scrape + process"""
-    cmd_process(args)
 
 
 def cmd_serve(args):
@@ -156,10 +109,6 @@ def cmd_serve(args):
         reload=args.reload
     )
 
-
-def cmd_reset(args):
-    """Reset scraper state"""
-    print("✓ Scraper state reset (database-driven, no file state to reset)")
 
 
 def cmd_clear(args):
@@ -217,9 +166,9 @@ def cmd_stats(args):
     print(f"Officials:    {session.query(func.count(Official.id)).scalar()}")
 
     # Latest meeting
-    latest = session.query(Meeting).order_by(Meeting.meeting_date.desc()).first()
+    latest = session.query(Meeting).order_by(Meeting.meeting_datetime.desc()).first()
     if latest:
-        print(f"Latest meeting: {latest.meeting_date}")
+        print(f"Latest meeting: {latest.meeting_datetime}")
 
     session.close()
 
@@ -308,23 +257,6 @@ def main():
     parser_scrape.add_argument('--year', default='2025', help='Year to scrape')
     parser_scrape.set_defaults(func=cmd_scrape)
 
-    # process
-    parser_process = subparsers.add_parser('process', help='Process documents with ETL')
-    parser_process.add_argument('--limit', type=int, help='Limit number of documents')
-    parser_process.add_argument('--full', action='store_true', help='Full processing')
-    parser_process.add_argument('--show-browser', action='store_true', help='Show browser (not headless)')
-    parser_process.add_argument('--convert-with-ai', action='store_true', help='Convert documents with AI (default: no)')
-    parser_process.set_defaults(func=cmd_process)
-    
-    # run
-    parser_run = subparsers.add_parser('run', help='Run full pipeline')
-    parser_run.add_argument('--limit', type=int, help='Limit number of documents')
-    parser_run.add_argument('--full', action='store_true', help='Full pipeline')
-    parser_run.add_argument('--force', action='store_true', help='Force re-process')
-    parser_run.add_argument('--show-browser', action='store_true', help='Show browser (not headless)')
-    parser_run.add_argument('--convert-with-ai', action='store_true', help='Convert documents with AI (default: no)')
-    parser_run.set_defaults(func=cmd_run)
-    
     # serve
     parser_serve = subparsers.add_parser('serve', help='Start API server')
     parser_serve.add_argument('--host', default='0.0.0.0', help='Host to bind')
@@ -332,10 +264,6 @@ def main():
     parser_serve.add_argument('--reload', action='store_true', help='Auto-reload on changes')
     parser_serve.set_defaults(func=cmd_serve)
     
-    # reset
-    parser_reset = subparsers.add_parser('reset', help='Reset scraper state')
-    parser_reset.set_defaults(func=cmd_reset)
-
     # clear
     parser_clear = subparsers.add_parser('clear', help='Clear all data from database')
     parser_clear.add_argument('--force', action='store_true', help='Skip confirmation prompt')
