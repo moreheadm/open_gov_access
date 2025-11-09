@@ -144,7 +144,7 @@ class NonAITranscriptParser:
         Returns:
             Plain text transcript
         """
-        segments = NonAITranscriptParser.extract_segments(html_content)
+        segments = self.extract_segments(html_content)
 
         self.to_markdown(segments, include_timestamps=include_timestamps)
 
