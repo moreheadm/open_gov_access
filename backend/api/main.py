@@ -9,6 +9,7 @@ import os
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
+from calendar import monthrange
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -446,38 +447,43 @@ def get_legislation_detail(
 
 @app.get("/api/meetings", response_model=List[MeetingBase])
 def get_meetings(
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=200),
+    month: Optional[str] = Query(None, description="Filter by month in YYYY-MM format, or 'all' for all meetings"),
     db: Session = Depends(get_db)
 ):
     """
-    Get list of meetings.
-    
-    Args:
-        limit: Maximum number of results
-    """
-    meetings = (
-        db.query(Meeting)
-        .order_by(Meeting.meeting_datetime.desc())
-        .limit(limit)
-        .all()
-    )
-    return meetings
+    Get list of meetings, optionally filtered by month.
 
-#get meeting by month
-@app.get("/api/meetings/{month}", response_model=List[MeetingBase])
-def get_meetings(
-    limit: int =  Query(20, ge=1, le=100),
-    db: Session = Depends(get_db)
-):
-    """
-    Get list of meetings.
-    
     Args:
         limit: Maximum number of results
+        month: Optional month filter in YYYY-MM format (e.g., '2025-01'), or 'all' for all meetings
     """
+    query = db.query(Meeting)
+
+    # Apply month filter if provided and not 'all'
+    if month and month != 'all':
+        try:
+            # Parse the month string (YYYY-MM)
+            year, month_num = month.split('-')
+            year_int = int(year)
+            month_int = int(month_num)
+
+            # Create start and end dates for the month
+            start_date = datetime(year_int, month_int, 1)
+            last_day = monthrange(year_int, month_int)[1]
+            end_date = datetime(year_int, month_int, last_day, 23, 59, 59)
+
+            query = query.filter(
+                Meeting.meeting_datetime >= start_date,
+                Meeting.meeting_datetime <= end_date
+            )
+        except (ValueError, AttributeError):
+            # Invalid month format, ignore filter
+            pass
+
     meetings = (
-        db.query(Meeting)
-        .order_by(Meeting.meeting_date.desc())
+        query
+        .order_by(Meeting.meeting_datetime.desc())
         .limit(limit)
         .all()
     )
