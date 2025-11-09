@@ -66,7 +66,6 @@ export default function HomePage() {
         />
       ) : (
         <MeetingSelector
-          meetings={meetings}
           onMeetingSelect={handleMeetingSelect}
         />
       )}

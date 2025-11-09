@@ -4,19 +4,36 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const headlineId = searchParams.get('headlineId');
 
-  // Simulate API processing time
-  await new Promise(resolve => setTimeout(resolve, 1500));
+  try {
+    // Try to fetch from your real sentiment analysis API
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sentiment/${headlineId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(10000), // 10 second timeout for AI processing
+    });
 
-  // In a real app, this would:
-  // 1. Fetch the headline text
-  // 2. Analyze sentiment using AI or sentiment analysis API
-  // 3. Return the sentiment score
-  
-  // For now, return a random score
-  const randomScore = Math.floor(Math.random() * 10) + 1;
-  
-  return NextResponse.json({ 
-    headlineId,
-    score: randomScore 
-  });
+    if (!response.ok) {
+      throw new Error(`API responded with status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data);
+    
+  } catch (error) {
+    console.error('Failed to fetch sentiment from API, using random score:', error);
+    
+    // Simulate processing time
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Fallback to random score
+    const randomScore = Math.floor(Math.random() * 10) + 1;
+    
+    return NextResponse.json({ 
+      headlineId,
+      score: randomScore,
+      isMock: true // Flag to indicate this is mock data
+    });
+  }
 }
