@@ -8,6 +8,8 @@ Commands:
   run         - Run scrape + process pipeline
   serve       - Start API server
   reset       - Reset scraper state
+  clear       - Clear all data from database
+  stats       - Show database statistics
   pdf2md      - Convert PDF to Markdown using PyMuPDF
 """
 
@@ -160,6 +162,46 @@ def cmd_reset(args):
     print("✓ Scraper state reset (database-driven, no file state to reset)")
 
 
+def cmd_clear(args):
+    """Clear all data from the database"""
+    from models.database import Base
+    from sqlalchemy import create_engine, inspect
+
+    # Confirm with user
+    if not args.force:
+        response = input("⚠️  This will DELETE ALL data from the database. Are you sure? (yes/no): ")
+        if response.lower() != 'yes':
+            print("✗ Cancelled")
+            return
+
+    print("Clearing database...")
+
+    try:
+        # Create engine
+        engine = create_engine(args.database)
+
+        # Drop all tables
+        Base.metadata.drop_all(engine)
+        print("✓ All tables dropped")
+
+        # Recreate tables
+        Base.metadata.create_all(engine)
+        print("✓ Tables recreated")
+
+        # Seed officials
+        session = get_session(engine)
+        seed_officials(session)
+        session.close()
+        print("✓ Officials seeded")
+
+        print("✓ Database cleared successfully")
+    except Exception as e:
+        print(f"✗ Error clearing database: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+
+
 def cmd_stats(args):
     """Show statistics"""
     engine = init_db(args.database)
@@ -263,6 +305,7 @@ def main():
     parser_scrape.add_argument('--save', help='Save PDFs to directory')
     parser_scrape.add_argument('--show-browser', action='store_true', help='Show browser (not headless)')
     parser_scrape.add_argument('--convert-with-ai', action='store_true', help='Convert documents with AI (default: no)')
+    parser_scrape.add_argument('--year', default='2025', help='Year to scrape')
     parser_scrape.set_defaults(func=cmd_scrape)
 
     # process
@@ -292,7 +335,12 @@ def main():
     # reset
     parser_reset = subparsers.add_parser('reset', help='Reset scraper state')
     parser_reset.set_defaults(func=cmd_reset)
-    
+
+    # clear
+    parser_clear = subparsers.add_parser('clear', help='Clear all data from database')
+    parser_clear.add_argument('--force', action='store_true', help='Skip confirmation prompt')
+    parser_clear.set_defaults(func=cmd_clear)
+
     # stats
     parser_stats = subparsers.add_parser('stats', help='Show statistics')
     parser_stats.set_defaults(func=cmd_stats)

@@ -388,10 +388,7 @@ class LegistarScraper(Scraper):
                     # Get page source
                     page_content = driver.page_source
 
-                    # For transcripts, extract and convert to markdown (if enabled)
-                    converted_content = None
-                    if self.convert_with_ai:
-                        converted_content = self._extract_and_convert_transcript(page_content)
+                    converted_content = self._extract_and_convert_transcript(page_content)
 
                     # Extract meeting ID from meeting_detail if available
                     meeting_id = None
