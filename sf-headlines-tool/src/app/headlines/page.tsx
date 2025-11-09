@@ -136,8 +136,26 @@ function HeadlinesContent() {
           SF Board Headlines Research Tool
         </h1>
         <p className="text-lg text-gray-300">Analyze potential headlines from board of supervisors meetings</p>
-        
-        <InitialsPrompt 
+
+        {meetingTitle && (
+          <div className="mt-4 mb-2">
+            <h2 className="text-2xl font-semibold text-blue-300">{meetingTitle}</h2>
+            {meetingDatetime && (
+              <p className="text-sm text-gray-400 mt-1">
+                {new Date(meetingDatetime).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit'
+                })}
+              </p>
+            )}
+          </div>
+        )}
+
+        <InitialsPrompt
           userInitials={userInitials}
           onInitialsSet={setUserInitials}
         />
