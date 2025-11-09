@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # API
     api_host: str = "0.0.0.0"
-    api_port: int = 8000
+    api_port: int = os.getenv("PORT", 8000)
 
     # Scraper
     state_dir: str = "data/state"
