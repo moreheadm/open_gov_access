@@ -20,7 +20,8 @@ from pathlib import Path
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from models.database import init_db, get_session, seed_officials, seed_example_data, Document
+from models.database import (init_db, get_session, seed_officials, seed_example_data, Document,
+                             Meeting)
 from sqlalchemy import select
 from scrapers.legistar import LegistarScraper
 from config import settings
@@ -100,11 +101,18 @@ def cmd_process(args):
     count = 0
     for obj in scraper.scrape(session=session):
         try:
+            # If document query for document and not full scrape, query for same URL
+            if isinstance(obj, Document) and args.full:
+                existing = session.query(Document).filter_by(url=obj.url).first()
+                obj.id = existing.id
+            elif isinstance(obj, Meeting) and args.full:
+                existing = session.query(Meeting).filter_by(file_number=obj.file_number).first()
+                obj.id = existing.id
+
             # Add to database
             session.merge(obj)
             session.commit()
 
-            # Process with ETL if it's a Document
             if isinstance(obj, Document):
                 obj_type = "Document"
                 obj_id = obj.url
