@@ -18,6 +18,8 @@ function HeadlinesContent() {
 
   const [userInitials, setUserInitials] = useState(initialInitials);
   const [headlines, setHeadlines] = useState<HeadlinesData>({});
+  const [meetingTitle, setMeetingTitle] = useState<string | null>(null);
+  const [meetingDatetime, setMeetingDatetime] = useState<string | null>(null);
   const [selectedSupervisor, setSelectedSupervisor] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -27,7 +29,11 @@ function HeadlinesContent() {
       try {
         const response = await fetch(`/api/headlines?meetingId=${meetingId}`);
         const data = await response.json();
-        setHeadlines(data);
+        setHeadlines(data.headlines || data); // Support both new and old format
+        if (data.meeting) {
+          setMeetingTitle(data.meeting.title);
+          setMeetingDatetime(data.meeting.datetime);
+        }
       } catch (error) {
         console.error('Error fetching headlines:', error);
       } finally {
