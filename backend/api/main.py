@@ -15,12 +15,14 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session
 
 from models.database import (
+    Action,
+    ActionType,
     Document,
-    Item,
-    ItemResult,
+    Legislation,
+    LegislationStatus,
     Meeting,
-    Supervisor,
-    Vote,
+    Official,
+    OfficialType,
     VoteType,
 )
 
@@ -41,7 +43,7 @@ app.add_middleware(
 )
 
 # Database setup
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/supervisor_votes")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://opengov:opengov@localhost:5432/open_gov_access")
 engine = create_engine(DATABASE_URL)
 
 
@@ -58,46 +60,59 @@ def get_db():
 
 # Pydantic models for API responses
 
-class SupervisorBase(BaseModel):
+class SupervisorResponse(BaseModel):
+    """Supervisor information for API responses"""
     model_config = ConfigDict(from_attributes=True)
-    
-    id: int
+
     name: str
     district: Optional[int]
-    is_active: bool
+    initials: Optional[str]
 
 
-class VoteBase(BaseModel):
+class SponsorResponse(BaseModel):
+    """Sponsor information including type (supervisor/mayor)"""
+    name: str
+    is_mayor: bool  # True if official_type is MAYOR
+
+
+class CommitteeResponse(BaseModel):
+    """Committee information"""
+    name: Optional[str]
+    members: Optional[List[str]]
+
+
+class DatesResponse(BaseModel):
+    """Legislation dates"""
+    introduced: Optional[str]
+    final_action: Optional[str]
+
+
+class LegislationResponse(BaseModel):
+    """Legislation detail response matching desired format"""
     model_config = ConfigDict(from_attributes=True)
-    
-    id: int
-    vote: VoteType
-    supervisor: SupervisorBase
 
-
-class ItemBase(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    
     id: int
-    file_number: Optional[str]
+    legislation_number: Optional[str]  # file_number
     title: str
-    result: Optional[ItemResult]
-    vote_count_aye: int
-    vote_count_no: int
-    vote_count_abstain: int
-    vote_count_absent: int
-
-
-class ItemDetail(ItemBase):
-    model_config = ConfigDict(from_attributes=True)
-    
     description: Optional[str]
-    meeting_date: datetime
-    votes: List[VoteBase]
+    type: Optional[str]  # legislation_type
+    category: Optional[str]
+    status: Optional[str]
+    dates: Optional[DatesResponse]
+    sponsors: Optional[List[SponsorResponse]]
+    committee: Optional[CommitteeResponse]
+    legislation_url: Optional[str]  # url
+    votes: Optional[dict]  # Dict[supervisor_name, vote_type]
+
+
+class LegislationListResponse(BaseModel):
+    """Response for legislation list endpoint"""
+    legislation: List[LegislationResponse]
+    supervisors: List[SupervisorResponse]
 
 
 class SupervisorStats(BaseModel):
-    supervisor: SupervisorBase
+    supervisor: SupervisorResponse
     total_votes: int
     aye_count: int
     no_count: int
@@ -134,72 +149,78 @@ def root():
     }
 
 
-@app.get("/api/supervisors", response_model=List[SupervisorBase])
+@app.get("/api/supervisors", response_model=List[SupervisorResponse])
 def get_supervisors(
     active_only: bool = True,
     db: Session = Depends(get_db)
 ):
     """
-    Get list of supervisors.
-    
+    Get list of supervisors (officials with type=SUPERVISOR).
+
     Args:
         active_only: Only return active supervisors
     """
-    query = db.query(Supervisor)
-    
+    query = db.query(Official).filter(Official.official_type == OfficialType.SUPERVISOR)
+
     if active_only:
-        query = query.filter(Supervisor.is_active == True)
-    
-    supervisors = query.order_by(Supervisor.district).all()
+        query = query.filter(Official.is_active == True)
+
+    supervisors = query.order_by(Official.district).all()
     return supervisors
 
 
-@app.get("/api/supervisors/{supervisor_id}", response_model=SupervisorBase)
+@app.get("/api/supervisors/{supervisor_id}", response_model=SupervisorResponse)
 def get_supervisor(
     supervisor_id: int,
     db: Session = Depends(get_db)
 ):
     """Get supervisor details"""
-    supervisor = db.query(Supervisor).filter(Supervisor.id == supervisor_id).first()
-    
+    supervisor = db.query(Official).filter(
+        Official.id == supervisor_id,
+        Official.official_type == OfficialType.SUPERVISOR
+    ).first()
+
     if not supervisor:
         raise HTTPException(status_code=404, detail="Supervisor not found")
-    
+
     return supervisor
 
 
-@app.get("/api/supervisors/{supervisor_id}/votes", response_model=List[ItemBase])
-def get_supervisor_votes(
+@app.get("/api/supervisors/{supervisor_id}/actions")
+def get_supervisor_actions(
     supervisor_id: int,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):
     """
-    Get voting history for a supervisor.
-    
+    Get action history for a supervisor.
+
     Args:
         supervisor_id: Supervisor ID
         limit: Maximum number of results
         offset: Offset for pagination
     """
-    supervisor = db.query(Supervisor).filter(Supervisor.id == supervisor_id).first()
-    
+    supervisor = db.query(Official).filter(
+        Official.id == supervisor_id,
+        Official.official_type == OfficialType.SUPERVISOR
+    ).first()
+
     if not supervisor:
         raise HTTPException(status_code=404, detail="Supervisor not found")
-    
-    # Get items this supervisor voted on
-    items = (
-        db.query(Item)
-        .join(Vote)
-        .filter(Vote.supervisor_id == supervisor_id)
-        .order_by(Item.id.desc())
+
+    # Get legislation this supervisor acted on
+    legislation = (
+        db.query(Legislation)
+        .join(Action)
+        .filter(Action.official_id == supervisor_id)
+        .order_by(Legislation.id.desc())
         .limit(limit)
         .offset(offset)
         .all()
     )
-    
-    return items
+
+    return legislation
 
 
 @app.get("/api/supervisors/{supervisor_id}/stats", response_model=SupervisorStats)
@@ -209,26 +230,29 @@ def get_supervisor_stats(
 ):
     """
     Get voting statistics for a supervisor.
-    
+
     Args:
         supervisor_id: Supervisor ID
     """
-    supervisor = db.query(Supervisor).filter(Supervisor.id == supervisor_id).first()
-    
+    supervisor = db.query(Official).filter(
+        Official.id == supervisor_id,
+        Official.official_type == OfficialType.SUPERVISOR
+    ).first()
+
     if not supervisor:
         raise HTTPException(status_code=404, detail="Supervisor not found")
-    
-    # Count votes by type
-    votes = db.query(Vote).filter(Vote.supervisor_id == supervisor_id).all()
-    
-    total_votes = len(votes)
-    aye_count = sum(1 for v in votes if v.vote == VoteType.AYE)
-    no_count = sum(1 for v in votes if v.vote == VoteType.NO)
-    abstain_count = sum(1 for v in votes if v.vote == VoteType.ABSTAIN)
-    absent_count = sum(1 for v in votes if v.vote == VoteType.ABSENT)
-    
+
+    # Count actions by type
+    actions = db.query(Action).filter(Action.official_id == supervisor_id).all()
+
+    total_votes = len([a for a in actions if a.action_type == ActionType.VOTE])
+    aye_count = sum(1 for a in actions if a.vote == VoteType.AYE)
+    no_count = sum(1 for a in actions if a.vote == VoteType.NO)
+    abstain_count = sum(1 for a in actions if a.vote == VoteType.ABSTAIN)
+    absent_count = sum(1 for a in actions if a.vote == VoteType.ABSENT)
+
     aye_percentage = (aye_count / total_votes * 100) if total_votes > 0 else 0.0
-    
+
     return SupervisorStats(
         supervisor=supervisor,
         total_votes=total_votes,
@@ -240,65 +264,173 @@ def get_supervisor_stats(
     )
 
 
-@app.get("/api/items", response_model=List[ItemBase])
-def get_items(
+@app.get("/api/legislation", response_model=LegislationListResponse)
+def get_legislation(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """
-    Get list of voting items.
-    
+    Get list of legislation with votes aggregated on demand.
+
     Args:
         limit: Maximum number of results
         offset: Offset for pagination
         search: Search query for title
     """
-    query = db.query(Item)
-    
+    query = db.query(Legislation)
+
     if search:
-        query = query.filter(Item.title.ilike(f"%{search}%"))
-    
-    items = query.order_by(Item.id.desc()).limit(limit).offset(offset).all()
-    return items
+        query = query.filter(Legislation.title.ilike(f"%{search}%"))
+
+    legislation_list = query.order_by(Legislation.id.desc()).limit(limit).offset(offset).all()
+
+    # Get all supervisors
+    supervisors = db.query(Official).filter(
+        Official.is_active == True,
+        Official.official_type == OfficialType.SUPERVISOR
+    ).order_by(Official.district).all()
+
+    # Build response
+    legislation_responses = []
+    for leg in legislation_list:
+        # Get all vote actions for this legislation
+        vote_actions = (
+            db.query(Action, Official)
+            .join(Official, Action.official_id == Official.id)
+            .filter(Action.legislation_id == leg.id)
+            .filter(Action.action_type == ActionType.VOTE)
+            .all()
+        )
+
+        # Build votes dict
+        votes_dict = {action.Official.name: action.Action.vote.value if action.Action.vote else None
+                      for action in vote_actions}
+
+        # Get sponsor actions
+        sponsor_actions = (
+            db.query(Action, Official)
+            .join(Official, Action.official_id == Official.id)
+            .filter(Action.legislation_id == leg.id)
+            .filter(Action.action_type.in_([ActionType.SPONSOR, ActionType.CO_SPONSOR]))
+            .all()
+        )
+
+        sponsors = [
+            SponsorResponse(
+                name=action.Official.name,
+                is_mayor=(action.Official.official_type == OfficialType.MAYOR)
+            )
+            for action in sponsor_actions
+        ]
+
+        # Parse metadata for dates and committee
+        dates = None
+        committee = None
+        if leg.metadata:
+            if 'dates' in leg.metadata:
+                dates = DatesResponse(**leg.metadata['dates'])
+            if 'committee' in leg.metadata:
+                committee = CommitteeResponse(**leg.metadata['committee'])
+
+        legislation_responses.append(
+            LegislationResponse(
+                id=leg.id,
+                legislation_number=leg.file_number,
+                title=leg.title,
+                description=leg.description,
+                type=leg.legislation_type,
+                category=leg.category,
+                status=leg.status.value if leg.status else None,
+                dates=dates,
+                sponsors=sponsors if sponsors else None,
+                committee=committee,
+                legislation_url=leg.url,
+                votes=votes_dict if votes_dict else None
+            )
+        )
+
+    supervisor_responses = [
+        SupervisorResponse(name=s.name, district=s.district, initials=s.initials)
+        for s in supervisors
+    ]
+
+    return LegislationListResponse(
+        legislation=legislation_responses,
+        supervisors=supervisor_responses
+    )
 
 
-@app.get("/api/items/{item_id}", response_model=ItemDetail)
-def get_item(
-    item_id: int,
+@app.get("/api/legislation/{legislation_id}", response_model=LegislationResponse)
+def get_legislation_detail(
+    legislation_id: int,
     db: Session = Depends(get_db)
 ):
     """
-    Get item details with all votes.
-    
+    Get legislation details with all votes aggregated on demand.
+
     Args:
-        item_id: Item ID
+        legislation_id: Legislation ID
     """
-    item = db.query(Item).filter(Item.id == item_id).first()
-    
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    
-    # Get meeting date
-    meeting = db.query(Meeting).filter(Meeting.id == item.meeting_id).first()
-    
-    # Create response with meeting date
-    item_dict = {
-        "id": item.id,
-        "file_number": item.file_number,
-        "title": item.title,
-        "description": item.description,
-        "result": item.result,
-        "vote_count_aye": item.vote_count_aye,
-        "vote_count_no": item.vote_count_no,
-        "vote_count_abstain": item.vote_count_abstain,
-        "vote_count_absent": item.vote_count_absent,
-        "meeting_date": meeting.meeting_date if meeting else None,
-        "votes": item.votes
-    }
-    
-    return item_dict
+    leg = db.query(Legislation).filter(Legislation.id == legislation_id).first()
+
+    if not leg:
+        raise HTTPException(status_code=404, detail="Legislation not found")
+
+    # Get all vote actions for this legislation
+    vote_actions = (
+        db.query(Action, Official)
+        .join(Official, Action.official_id == Official.id)
+        .filter(Action.legislation_id == leg.id)
+        .filter(Action.action_type == ActionType.VOTE)
+        .all()
+    )
+
+    # Build votes dict
+    votes_dict = {action.Official.name: action.Action.vote.value if action.Action.vote else None
+                  for action in vote_actions}
+
+    # Get sponsor actions
+    sponsor_actions = (
+        db.query(Action, Official)
+        .join(Official, Action.official_id == Official.id)
+        .filter(Action.legislation_id == leg.id)
+        .filter(Action.action_type.in_([ActionType.SPONSOR, ActionType.CO_SPONSOR]))
+        .all()
+    )
+
+    sponsors = [
+        SponsorResponse(
+            name=action.Official.name,
+            is_mayor=(action.Official.official_type == OfficialType.MAYOR)
+        )
+        for action in sponsor_actions
+    ]
+
+    # Parse metadata for dates and committee
+    dates = None
+    committee = None
+    if leg.metadata:
+        if 'dates' in leg.metadata:
+            dates = DatesResponse(**leg.metadata['dates'])
+        if 'committee' in leg.metadata:
+            committee = CommitteeResponse(**leg.metadata['committee'])
+
+    return LegislationResponse(
+        id=leg.id,
+        legislation_number=leg.file_number,
+        title=leg.title,
+        description=leg.description,
+        type=leg.legislation_type,
+        category=leg.category,
+        status=leg.status.value if leg.status else None,
+        dates=dates,
+        sponsors=sponsors if sponsors else None,
+        committee=committee,
+        legislation_url=leg.url,
+        votes=votes_dict if votes_dict else None
+    )
 
 
 @app.get("/api/meetings", response_model=List[MeetingBase])
@@ -325,19 +457,20 @@ def get_meetings(
 def get_overview_stats(db: Session = Depends(get_db)):
     """Get overview statistics"""
     total_meetings = db.query(func.count(Meeting.id)).scalar()
-    total_items = db.query(func.count(Item.id)).scalar()
-    total_votes = db.query(func.count(Vote.id)).scalar()
-    active_supervisors = db.query(func.count(Supervisor.id)).filter(
-        Supervisor.is_active == True
+    total_legislation = db.query(func.count(Legislation.id)).scalar()
+    total_actions = db.query(func.count(Action.id)).scalar()
+    active_supervisors = db.query(func.count(Official.id)).filter(
+        Official.is_active == True,
+        Official.official_type == OfficialType.SUPERVISOR
     ).scalar()
-    
+
     latest_meeting = db.query(Meeting).order_by(Meeting.meeting_date.desc()).first()
     latest_meeting_date = latest_meeting.meeting_date if latest_meeting else None
-    
+
     return OverviewStats(
         total_meetings=total_meetings or 0,
-        total_items=total_items or 0,
-        total_votes=total_votes or 0,
+        total_items=total_legislation or 0,
+        total_votes=total_actions or 0,
         latest_meeting_date=latest_meeting_date,
         active_supervisors=active_supervisors or 0
     )

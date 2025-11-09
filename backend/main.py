@@ -18,7 +18,7 @@ from pathlib import Path
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from models.database import init_db, get_session, seed_supervisors
+from models.database import init_db, get_session, seed_officials, seed_example_data
 from scrapers.sfbos import SFBOSScraper
 from etl.pipeline import ETLPipeline
 from config import settings
@@ -29,11 +29,16 @@ def cmd_init(args):
     print("Initializing database...")
     engine = init_db(args.database)
     print("✓ Database created")
-    
+
     session = get_session(engine)
-    seed_supervisors(session)
+    seed_officials(session)
+
+    # Seed example data if requested
+    if args.with_examples:
+        seed_example_data(session)
+
     session.close()
-    
+
     print("✓ Database initialized")
 
 
@@ -171,6 +176,7 @@ def main():
     
     # init
     parser_init = subparsers.add_parser('init', help='Initialize database')
+    parser_init.add_argument('--with-examples', action='store_true', help='Seed with example data')
     parser_init.set_defaults(func=cmd_init)
     
     # scrape
