@@ -53,11 +53,14 @@ export async function GET(request: Request) {
     const headlines: HeadlinesData = {};
 
     for (const person of data.people) {
+      // Clean up the name - remove "Supervisor" prefix if present
+      const cleanName = person.name.replace(/^Supervisor\s+/i, '').trim();
+
       // Get supervisor ID from name
-      const supervisorId = getSupervisorIdFromName(person.name);
+      const supervisorId = getSupervisorIdFromName(cleanName);
 
       if (!supervisorId) {
-        console.warn(`Could not find supervisor ID for: ${person.name}`);
+        console.warn(`Could not find supervisor ID for: ${person.name} (cleaned: ${cleanName})`);
         continue;
       }
 
