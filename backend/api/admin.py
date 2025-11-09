@@ -146,7 +146,6 @@ async def admin_init(
 async def admin_scrape(
     limit: Optional[int] = Query(None, description="Limit number of documents"),
     full: bool = Query(False, description="Full scrape (not incremental)"),
-    force: bool = Query(False, description="Force re-scrape"),
     convert_with_ai: bool = Query(False, description="Convert documents with AI"),
     show_browser: bool = Query(False, description="Show browser (not headless)"),
     database: Optional[str] = None,
@@ -158,7 +157,6 @@ async def admin_scrape(
     Args:
         limit: Maximum number of documents to scrape
         full: Disable incremental mode (scrape all)
-        force: Force re-scrape even if already in database
         convert_with_ai: Convert documents with AI
         show_browser: Show browser window (not headless)
         database: Database URL (uses DATABASE_URL env var if not provided)
@@ -168,37 +166,36 @@ async def admin_scrape(
     """
     try:
         db_url = database or settings.database_url
-        print(f"[ADMIN] Starting scrape: limit={limit}, full={full}, force={force}, ai={convert_with_ai}")
+        print(f"[ADMIN] Starting scrape: limit={limit}, full={full}, ai={convert_with_ai}")
 
         engine = init_db(db_url)
         session = get_session(engine)
 
         scraper = LegistarScraper(
             headless=not show_browser,
-            convert_with_ai=convert_with_ai
+            convert_with_ai=convert_with_ai,
+            limit=limit,
+            incremental=not full
         )
 
         count = 0
-        for doc in scraper.scrape(
-            limit=limit,
-            incremental=not full,
-            force=force,
-            session=session
-        ):
+        for obj in scraper.scrape(session=session):
             try:
-                session.add(doc)
+                session.add(obj)
                 session.commit()
                 count += 1
-                print(f"[ADMIN] ✓ Saved document {count}: {doc.url}")
+                obj_type = type(obj).__name__
+                obj_id = getattr(obj, 'url', getattr(obj, 'file_number', getattr(obj, 'name', 'unknown')))
+                print(f"[ADMIN] ✓ Saved {obj_type} {count}: {obj_id}")
             except Exception as e:
-                print(f"[ADMIN] ✗ Error saving document: {e}")
+                print(f"[ADMIN] ✗ Error saving object: {e}")
                 session.rollback()
 
         session.close()
 
         return ScrapeResponse(
             status="success",
-            message=f"Scraped and saved {count} documents",
+            message=f"Scraped and saved {count} objects",
             documents_scraped=count,
             timestamp=datetime.now(),
             convert_with_ai=convert_with_ai,

@@ -6,7 +6,7 @@ Incremental scraping is database-driven (checks for existing URLs in the databas
 """
 
 from abc import ABC, abstractmethod
-from typing import Generator, Optional
+from typing import Generator, Optional, Union
 
 
 class Scraper(ABC):
@@ -15,7 +15,7 @@ class Scraper(ABC):
 
     Subclasses must implement:
     - source_name(): Return the name of the data source
-    - scrape(): Main scraping method that yields Document models
+    - scrape(): Main scraping method that yields database models
 
     Incremental scraping is database-driven: pass a SQLAlchemy session to check
     for existing URLs in the database.
@@ -41,20 +41,20 @@ class Scraper(ABC):
         limit: Optional[int] = None,
         incremental: bool = True,
         force: bool = False
-    ) -> Generator['Document', None, None]:
+    ) -> Generator[Union['Document', 'Legislation', 'Official', 'Meeting', 'Action'], None, None]:
         """
         Main scraping method.
 
-        Discovers and fetches documents from the data source.
-        Yields Document database models (not yet persisted).
+        Discovers and fetches data from the data source.
+        Yields database models (not yet persisted).
 
         Args:
-            limit: Maximum number of documents to scrape
-            incremental: Only scrape new documents (check database for existing URLs)
+            limit: Maximum number of items to scrape
+            incremental: Only scrape new items (check database for existing URLs)
             force: Force re-scrape even if already in database
 
         Yields:
-            Document models (from models.database)
+            Database models (Document, Legislation, Official, Meeting, or Action)
         """
         pass
 

@@ -6,14 +6,14 @@ Scrapes meeting agendas and minutes from https://sfbos.org/meetings
 
 import re
 from datetime import datetime
-from typing import Generator, Optional
+from typing import Generator, Optional, Union
 
 import requests
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
 from .base import Scraper
-from models.database import Document, ContentFormat
+from models.database import Document, ContentFormat, Legislation, Official, Meeting, Action
 
 
 class SFBOSScraper(Scraper):
@@ -35,20 +35,20 @@ class SFBOSScraper(Scraper):
         incremental: bool = True,
         force: bool = False,
         session: Optional[Session] = None
-    ) -> Generator[Document, None, None]:
+    ) -> Generator[Union[Document, Legislation, Official, Meeting, Action], None, None]:
         """
         Main scraping method.
 
-        Discovers documents, filters based on database, and yields Document models.
+        Discovers documents, filters based on database, and yields database models.
 
         Args:
-            limit: Maximum number of documents to scrape
-            incremental: Only scrape new documents (not already in database)
+            limit: Maximum number of items to scrape
+            incremental: Only scrape new items (not already in database)
             force: Force re-scrape even if already in database
             session: SQLAlchemy session for checking existing URLs
 
         Yields:
-            Document models (not yet persisted to database)
+            Database models (Document, Legislation, Official, Meeting, or Action)
         """
         print(f"[{self.source_name()}] Discovering documents...")
 

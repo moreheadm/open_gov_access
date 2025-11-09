@@ -56,39 +56,29 @@ def cmd_scrape(args):
 
     scraper = LegistarScraper(
         headless=not args.show_browser,
-        convert_with_ai=args.convert_with_ai
+        convert_with_ai=args.convert_with_ai,
+        limit=args.limit,
+        incremental=not args.full
     )
 
-    # Scrape and save documents
+    # Scrape and save database objects
     count = 0
-    for doc in scraper.scrape(
-        limit=args.limit,
-        incremental=not args.full,
-        force=args.force,
-        session=session
-    ):
+    for obj in scraper.scrape(session=session):
         try:
             # Add to database
-            statement = select(Document).where(Document.url == doc.url).limit(1)
-            obj = session.execute(statement).scalar_one_or_none()
-
-            if obj:
-                print(f"  Already in database: {doc.url}")
-                if args.full:
-                    doc.id = obj.id
-                else:
-                    continue
-
-            session.merge(doc)
+            session.merge(obj)
             session.commit()
             count += 1
-            print(f"✓ Saved document: {doc.url}")
+            obj_type = type(obj).__name__
+            obj_id = getattr(obj, 'url', getattr(obj, 'file_number', getattr(obj, 'name', 'unknown')))
+            print(f"✓ Saved {obj_type}: {obj_id}")
         except Exception as e:
-            print(f"✗ Error saving document {doc.url}: {e}")
+            obj_type = type(obj).__name__
+            print(f"✗ Error saving {obj_type}: {e}")
             session.rollback()
 
     session.close()
-    print(f"✓ Scraped and saved {count} documents to database")
+    print(f"✓ Scraped and saved {count} objects to database")
 
     return count
 
@@ -105,36 +95,32 @@ def cmd_process(args):
     # Scrape documents
     scraper = LegistarScraper(
         headless=not args.show_browser,
-        convert_with_ai=args.convert_with_ai
+        convert_with_ai=args.convert_with_ai,
+        limit=args.limit,
+        incremental=not args.full
     )
 
     count = 0
-    for doc in scraper.scrape(
-        limit=args.limit,
-        incremental=not args.full,
-        force=args.force,
-        session=session
-    ):
+    for obj in scraper.scrape(session=session):
         try:
             # Add to database
-            statement = session.query(Document).where(Document.url == doc.url).count(1)
-            obj = session.execute(statement)
-            if obj:
-                print(f"  Already in database: {doc.url}")
-                if args.full:
-                    doc.id = obj.id
-                else:
-                    continue
-
-            session.merge(doc)
+            session.merge(obj)
             session.commit()
 
-            # Process with ETL
-            etl.process_document(doc)
+            # Process with ETL if it's a Document
+            if isinstance(obj, Document):
+                etl.process_document(obj)
+                obj_type = "Document"
+                obj_id = obj.url
+            else:
+                obj_type = type(obj).__name__
+                obj_id = getattr(obj, 'url', getattr(obj, 'file_number', getattr(obj, 'name', 'unknown')))
+
             count += 1
-            print(f"✓ Processed document: {doc.url}")
+            print(f"✓ Processed {obj_type}: {obj_id}")
         except Exception as e:
-            print(f"✗ Error processing {doc.url}: {e}")
+            obj_type = type(obj).__name__
+            print(f"✗ Error processing {obj_type}: {e}")
             session.rollback()
             if args.verbose:
                 import traceback
@@ -142,7 +128,7 @@ def cmd_process(args):
 
     session.close()
     etl.close()
-    print(f"✓ Scraped and processed {count} documents")
+    print(f"✓ Scraped and processed {count} objects")
 
 
 def cmd_run(args):
@@ -271,17 +257,15 @@ def main():
     parser_scrape = subparsers.add_parser('scrape', help='Scrape documents')
     parser_scrape.add_argument('--limit', type=int, help='Limit number of documents')
     parser_scrape.add_argument('--full', action='store_true', help='Full scrape (not incremental)')
-    parser_scrape.add_argument('--force', action='store_true', help='Force re-scrape')
     parser_scrape.add_argument('--save', help='Save PDFs to directory')
     parser_scrape.add_argument('--show-browser', action='store_true', help='Show browser (not headless)')
     parser_scrape.add_argument('--convert-with-ai', action='store_true', help='Convert documents with AI (default: no)')
     parser_scrape.set_defaults(func=cmd_scrape)
-    
+
     # process
     parser_process = subparsers.add_parser('process', help='Process documents with ETL')
     parser_process.add_argument('--limit', type=int, help='Limit number of documents')
     parser_process.add_argument('--full', action='store_true', help='Full processing')
-    parser_process.add_argument('--force', action='store_true', help='Force re-process')
     parser_process.add_argument('--show-browser', action='store_true', help='Show browser (not headless)')
     parser_process.add_argument('--convert-with-ai', action='store_true', help='Convert documents with AI (default: no)')
     parser_process.set_defaults(func=cmd_process)

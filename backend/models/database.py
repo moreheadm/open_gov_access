@@ -85,6 +85,7 @@ class Document(Base):
     """
     Scraped document - centerpiece for raw data storage.
     Documents are independent of meetings and contain raw scraped content.
+    Optionally linked to a meeting if the document is associated with a specific meeting.
     """
     __tablename__ = "documents"
 
@@ -94,8 +95,16 @@ class Document(Base):
     raw_content = Column(Text, nullable=True)  # File dump - original content
     content_format = Column(Enum(ContentFormat), nullable=False)  # pdf, html, csv, etc.
     converted_content = Column(Text, nullable=True)  # Content as markdown text
+    doc_metadata = Column(JSON, nullable=True)  # Additional metadata (e.g., link text, source info)
+
+    # Optional foreign key to link document to a meeting
+    meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=True, index=True)
+
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    meeting = relationship("Meeting", back_populates="documents")
 
     def __repr__(self):
         return f"<Document(id={self.id}, source={self.source}, format={self.content_format})>"
@@ -153,13 +162,15 @@ class Meeting(Base):
     __tablename__ = "meetings"
 
     id = Column(Integer, primary_key=True)
-    meeting_date = Column(DateTime, nullable=False, unique=True, index=True)
-    meeting_type = Column(Enum(MeetingType), nullable=False, default=MeetingType.REGULAR)
+    meeting_file_number = Column(String(255), nullable=True, index=True)  # e.g., "250657"
+    meeting_datetime = Column(DateTime, nullable=False, index=True)
+    meeting_type = Column(String(255), nullable=False, default=MeetingType.REGULAR)
     created_at = Column(DateTime, nullable=False, default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
     # Relationships
     actions = relationship("Action", back_populates="meeting", cascade="all, delete-orphan")
+    documents = relationship("Document", back_populates="meeting", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Meeting(date={self.meeting_date}, type={self.meeting_type})>"
