@@ -629,12 +629,18 @@ def get_meeting_summary(
     try:
         # Run auggie command with officials list
         # auggie --print command board-mayor-topics-summary-xml <transcript_path> <output_path> <officials_json>
-        result = subprocess.run(
-            ['auggie', '--print', 'command', 'board-mayor-topics-summary-xml', transcript_path, output_path, officials_path],
-            capture_output=True,
-            text=True,
-            timeout=120  # 2 minute timeout
-        )
+        try:
+            result = subprocess.run(
+                ['auggie', '--print', 'command', 'board-mayor-topics-summary-xml', transcript_path, output_path, officials_path],
+                capture_output=True,
+                text=True,
+                timeout=600  # 10 minute timeout for long transcripts
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(
+                status_code=504,
+                detail="Meeting transcript processing timed out after 10 minutes. The transcript may be too long."
+            )
 
         if result.returncode != 0:
             raise HTTPException(

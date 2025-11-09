@@ -66,3 +66,4 @@ Output requirements:
 
 - Never include explanatory prose or status messages in the XML file itself.
 - The only stdout output should be the confirmation message with the output file path.
+- Make sure to include one moment for each supervisor and mayor. if they said nothing mention that.
