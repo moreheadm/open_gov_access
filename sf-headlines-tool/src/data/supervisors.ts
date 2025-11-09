@@ -21,3 +21,14 @@ export function getSupervisorIdFromName(fullName: string): string | null {
   );
   return supervisor?.id || null;
 }
+
+// Helper function to get official ID (supervisor or mayor) from full name
+export function getOfficialIdFromName(fullName: string): string | null {
+  // Check if it's the mayor
+  if (fullName.toLowerCase().includes('lurie') || fullName.toLowerCase().includes('mayor')) {
+    return 'mayor';
+  }
+
+  // Otherwise check supervisors
+  return getSupervisorIdFromName(fullName);
+}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { mockHeadlinesData } from '@/data/mockHeadlines';
-import { getSupervisorIdFromName } from '@/data/supervisors';
+import { getOfficialIdFromName } from '@/data/supervisors';
 import { HeadlinesData, Headline } from '@/types';
 
 // Backend API configuration
@@ -57,11 +57,11 @@ export async function GET(request: Request) {
       // Clean up the name - remove "Supervisor" prefix if present
       const cleanName = person.name.replace(/^Supervisor\s+/i, '').trim();
 
-      // Get supervisor ID from name
-      const supervisorId = getSupervisorIdFromName(cleanName);
+      // Get official ID from name (works for both supervisors and mayor)
+      const officialId = getOfficialIdFromName(cleanName);
 
-      if (!supervisorId) {
-        console.warn(`Could not find supervisor ID for: ${person.name} (cleaned: ${cleanName})`);
+      if (!officialId) {
+        console.warn(`Could not find official ID for: ${person.name} (cleaned: ${cleanName})`);
         continue;
       }
 

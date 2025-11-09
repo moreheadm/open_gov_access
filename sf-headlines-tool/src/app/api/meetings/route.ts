@@ -6,6 +6,7 @@ const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8000';
 
 interface BackendMeeting {
   id: number;
+  meeting_title?: string;
   meeting_datetime: string;
   meeting_type: string;
 }
@@ -37,10 +38,14 @@ export async function GET(request: Request) {
       const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
       const month = dateStr.substring(0, 7); // YYYY-MM
 
+      // Use meeting_title if available, otherwise generate a default title
+      const title = meeting.meeting_title ||
+        `Board of Supervisors ${meeting.meeting_type.charAt(0).toUpperCase() + meeting.meeting_type.slice(1)} Meeting - ${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+
       return {
         id: meeting.id.toString(), // Convert to string for frontend
         date: dateStr,
-        title: `Board of Supervisors ${meeting.meeting_type.charAt(0).toUpperCase() + meeting.meeting_type.slice(1)} Meeting - ${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+        title: title,
         month: month,
       };
     });
