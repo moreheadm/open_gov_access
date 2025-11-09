@@ -10,6 +10,7 @@ from typing import Generator, Optional
 
 import requests
 from bs4 import BeautifulSoup
+from sqlalchemy.orm import Session
 
 from .base import Scraper
 from models.database import Document, ContentFormat
@@ -32,17 +33,19 @@ class SFBOSScraper(Scraper):
         self,
         limit: Optional[int] = None,
         incremental: bool = True,
-        force: bool = False
+        force: bool = False,
+        session: Optional[Session] = None
     ) -> Generator[Document, None, None]:
         """
         Main scraping method.
 
-        Discovers documents, filters based on state, and yields Document models.
+        Discovers documents, filters based on database, and yields Document models.
 
         Args:
             limit: Maximum number of documents to scrape
-            incremental: Only scrape new documents (not already in state)
-            force: Force re-scrape even if already scraped
+            incremental: Only scrape new documents (not already in database)
+            force: Force re-scrape even if already in database
+            session: SQLAlchemy session for checking existing URLs
 
         Yields:
             Document models (not yet persisted to database)
@@ -86,9 +89,12 @@ class SFBOSScraper(Scraper):
                 elif not url.startswith('http'):
                     continue
 
-                # Check if already scraped
-                if incremental and not force and self.state.is_scraped(url):
-                    continue
+                # Check if already in database (incremental by default)
+                if incremental and not force and session:
+                    existing = session.query(Document).filter_by(url=url).first()
+                    if existing:
+                        print(f"[{self.source_name()}] Skipping (already in database): {url}")
+                        continue
 
                 # Extract document type and date
                 link_text = link.get_text(strip=True).lower()
@@ -117,10 +123,6 @@ class SFBOSScraper(Scraper):
                         raw_content=response.content.decode('latin-1', errors='ignore'),
                         content_format=ContentFormat.PDF
                     )
-
-                    # Mark as scraped
-                    if not force:
-                        self.state.mark_scraped(url)
 
                     count += 1
                     yield doc

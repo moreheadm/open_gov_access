@@ -11,7 +11,7 @@ def main():
     print("=" * 60)
 
     # Create scraper instance
-    scraper = LegistarScraper(state_dir="data/state", headless=False)
+    scraper = LegistarScraper(headless=False)
 
     # Test scraping with a small limit
     try:

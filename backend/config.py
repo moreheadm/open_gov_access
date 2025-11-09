@@ -19,9 +19,6 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = os.getenv("PORT", 8000)
 
-    # Scraper
-    state_dir: str = "data/state"
-
     # LLM
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")

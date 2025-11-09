@@ -33,16 +33,16 @@ class LegistarScraper(Scraper):
     BASE_URL = "https://sfgov.legistar.com"
     CALENDAR_URL = "https://sfgov.legistar.com/Calendar.aspx"
     
-    def __init__(self, state_dir: str = "data/state", headless: bool = True, convert_with_ai: bool = False, use_non_ai_parsing: bool = True):
+    def __init__(self, headless: bool = True, convert_with_ai: bool = False, use_non_ai_parsing: bool = True):
         """
         Initialize Legistar scraper.
 
         Args:
-            state_dir: Directory to store scraper state
             headless: Whether to run browser in headless mode
             convert_with_ai: Whether to convert documents with AI (default: False)
+            use_non_ai_parsing: Whether to use non-AI transcript parsing
         """
-        super().__init__(state_dir)
+        super().__init__()
         self.headless = headless
         self.convert_with_ai = convert_with_ai
 
@@ -205,10 +205,6 @@ class LegistarScraper(Scraper):
                                     content_format=content_format,
                                     converted_content=converted_content
                                 )
-
-                                # Mark as scraped
-                                #if not force:
-                                #    self.state.mark_scraped(url)
 
                                 count += 1
                                 yield doc

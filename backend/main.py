@@ -55,7 +55,6 @@ def cmd_scrape(args):
     session = get_session(engine)
 
     scraper = LegistarScraper(
-        state_dir=args.state_dir,
         headless=not args.show_browser,
         convert_with_ai=args.convert_with_ai
     )
@@ -105,7 +104,6 @@ def cmd_process(args):
 
     # Scrape documents
     scraper = LegistarScraper(
-        state_dir=args.state_dir,
         headless=not args.show_browser,
         convert_with_ai=args.convert_with_ai
     )
@@ -170,9 +168,7 @@ def cmd_serve(args):
 
 def cmd_reset(args):
     """Reset scraper state"""
-    scraper = LegistarScraper(state_dir=args.state_dir)
-    scraper.reset_state()
-    print("✓ Scraper state reset")
+    print("✓ Scraper state reset (database-driven, no file state to reset)")
 
 
 def cmd_stats(args):
@@ -256,11 +252,6 @@ def main():
         '--database',
         default=settings.database_url,
         help='Database URL'
-    )
-    parser.add_argument(
-        '--state-dir',
-        default='data/state',
-        help='Directory for scraper state'
     )
     parser.add_argument(
         '--verbose', '-v',
